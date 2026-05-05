@@ -16,7 +16,30 @@ const Index = () => {
   const intervalRef = useRef<number | null>(null);
   const startedAtRef = useRef<Date | null>(null);
   const elapsedAtPauseRef = useRef<number>(0); // accumulated focused seconds while paused
+  const audioCtxRef = useRef<AudioContext | null>(null);
   const { todaySec, weekSec, monthSec, byDay, addSession } = useSessions();
+
+  const playTick = () => {
+    try {
+      if (!audioCtxRef.current) {
+        const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+        audioCtxRef.current = new Ctx();
+      }
+      const ctx = audioCtxRef.current;
+      if (ctx.state === "suspended") ctx.resume();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = 1000;
+      const t = ctx.currentTime;
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(0.05, t + 0.001);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.06);
+    } catch {}
+  };
 
   // Tick
   useEffect(() => {
@@ -28,6 +51,7 @@ const Index = () => {
           completeSession(duration * 60);
           return 0;
         }
+        playTick();
         return r - 1;
       });
     }, 1000);
