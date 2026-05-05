@@ -1,27 +1,15 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { formatDuration } from "@/lib/sessions";
 
 interface FocusCalendarProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  byDay: Record<string, number>; // date.toDateString() -> seconds
 }
 
-// Mock focus sessions in hours per day key
-const mockSessions: Record<string, number> = (() => {
-  const map: Record<string, number> = {};
-  const today = new Date();
-  for (let i = 0; i < 60; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() - i);
-    if (Math.random() > 0.3) {
-      map[d.toDateString()] = Math.round(Math.random() * 6 * 10) / 10;
-    }
-  }
-  return map;
-})();
-
-export const FocusCalendar = ({ open, onOpenChange }: FocusCalendarProps) => {
+export const FocusCalendar = ({ open, onOpenChange, byDay }: FocusCalendarProps) => {
   const [cursor, setCursor] = useState(new Date());
 
   const { days, monthLabel } = useMemo(() => {
@@ -78,7 +66,8 @@ export const FocusCalendar = ({ open, onOpenChange }: FocusCalendarProps) => {
         <div className="grid grid-cols-7 gap-1">
           {days.map((day, i) => {
             if (!day) return <div key={i} className="aspect-square" />;
-            const hours = mockSessions[day.toDateString()] || 0;
+            const seconds = byDay[day.toDateString()] || 0;
+            const hours = seconds / 3600;
             const isToday = day.toDateString() === today.toDateString();
             const intensity = Math.min(hours / 6, 1);
             return (
@@ -92,12 +81,12 @@ export const FocusCalendar = ({ open, onOpenChange }: FocusCalendarProps) => {
                     ? `hsl(0 0% 100% / ${0.05 + intensity * 0.18})`
                     : "hsl(0 0% 100% / 0.02)",
                 }}
-                title={hours ? `${hours}h focused` : "No session"}
+                title={seconds ? `${formatDuration(seconds)} focused` : "No session"}
               >
                 <span className="text-xs font-medium text-foreground/90">{day.getDate()}</span>
-                {hours > 0 && (
+                {seconds > 0 && (
                   <span className="text-[8px] text-muted-foreground tabular-nums mt-0.5">
-                    {hours}h
+                    {formatDuration(seconds)}
                   </span>
                 )}
               </div>
