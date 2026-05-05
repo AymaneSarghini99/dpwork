@@ -3,6 +3,8 @@ import { Play, Pause, RotateCcw } from "lucide-react";
 import { FlipDigit } from "@/components/FlipDigit";
 import { StatsWidget } from "@/components/StatsWidget";
 import { FocusCalendar } from "@/components/FocusCalendar";
+import { useSessions, formatDuration } from "@/lib/sessions";
+import { toast } from "sonner";
 
 const DURATIONS = [25, 45, 60, 90, 120];
 
@@ -12,13 +14,18 @@ const Index = () => {
   const [running, setRunning] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const intervalRef = useRef<number | null>(null);
+  const startedAtRef = useRef<Date | null>(null);
+  const elapsedAtPauseRef = useRef<number>(0); // accumulated focused seconds while paused
+  const { todaySec, weekSec, monthSec, byDay, addSession } = useSessions();
 
+  // Tick
   useEffect(() => {
     if (!running) return;
     intervalRef.current = window.setInterval(() => {
       setRemaining((r) => {
         if (r <= 1) {
-          setRunning(false);
+          // session complete
+          completeSession(duration * 60);
           return 0;
         }
         return r - 1;
@@ -27,15 +34,69 @@ const Index = () => {
     return () => {
       if (intervalRef.current) window.clearInterval(intervalRef.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running]);
 
+  const completeSession = (focusedSec: number) => {
+    setRunning(false);
+    const startedAt = startedAtRef.current ?? new Date(Date.now() - focusedSec * 1000);
+    addSession({
+      startedAt: startedAt.toISOString(),
+      endedAt: new Date().toISOString(),
+      durationSec: focusedSec,
+      plannedMin: duration,
+    });
+    startedAtRef.current = null;
+    elapsedAtPauseRef.current = 0;
+    toast.success("Session complete", {
+      description: `${formatDuration(focusedSec)} of deep work logged.`,
+    });
+  };
+
+  const handleToggle = () => {
+    if (running) {
+      // pausing — accumulate focused time
+      elapsedAtPauseRef.current += (duration * 60 - remaining) - elapsedAtPauseRef.current;
+      setRunning(false);
+      return;
+    }
+    // starting or resuming
+    if (!startedAtRef.current) startedAtRef.current = new Date();
+    setRunning(true);
+  };
+
   const setDur = (m: number) => {
+    // if a session is in progress, log partial focus before switching
+    if (startedAtRef.current) {
+      const focused = duration * 60 - remaining;
+      if (focused >= 60) {
+        addSession({
+          startedAt: startedAtRef.current.toISOString(),
+          endedAt: new Date().toISOString(),
+          durationSec: focused,
+          plannedMin: duration,
+        });
+      }
+      startedAtRef.current = null;
+    }
     setDuration(m);
     setRemaining(m * 60);
     setRunning(false);
   };
 
   const reset = () => {
+    if (startedAtRef.current) {
+      const focused = duration * 60 - remaining;
+      if (focused >= 60) {
+        addSession({
+          startedAt: startedAtRef.current.toISOString(),
+          endedAt: new Date().toISOString(),
+          durationSec: focused,
+          plannedMin: duration,
+        });
+      }
+      startedAtRef.current = null;
+    }
     setRunning(false);
     setRemaining(duration * 60);
   };
@@ -91,7 +152,7 @@ const Index = () => {
 
       <div className="mt-6 flex items-center gap-3 animate-fade-in">
         <button
-          onClick={() => setRunning((r) => !r)}
+          onClick={handleToggle}
           className="group glass rounded-full pl-5 pr-6 py-3 flex items-center gap-2.5 hover:bg-white/[0.08] transition-all duration-300 hover:scale-[1.02]"
         >
           {running ? (
@@ -112,8 +173,13 @@ const Index = () => {
         </button>
       </div>
 
-      <StatsWidget today="0m" week="5.3h" month="7.0h" onClick={() => setCalendarOpen(true)} />
-      <FocusCalendar open={calendarOpen} onOpenChange={setCalendarOpen} />
+      <StatsWidget
+        today={formatDuration(todaySec)}
+        week={formatDuration(weekSec)}
+        month={formatDuration(monthSec)}
+        onClick={() => setCalendarOpen(true)}
+      />
+      <FocusCalendar open={calendarOpen} onOpenChange={setCalendarOpen} byDay={byDay} />
     </main>
   );
 };
