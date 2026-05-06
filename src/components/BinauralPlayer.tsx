@@ -55,6 +55,7 @@ export const BinauralPlayer = () => {
   const musicCardRef = useRef<HTMLDivElement | null>(null);
   const originalMusicPosRef = useRef({ x: 16, y: 16 });
   const volumeRef = useRef(volume);
+  const openTimeoutRef = useRef<number | null>(null);
 
   const stop = () => {
     if (nodesRef.current) {
@@ -196,17 +197,32 @@ export const BinauralPlayer = () => {
     () => () => {
       stop();
       stopMusic();
+      if (openTimeoutRef.current !== null) {
+        window.clearTimeout(openTimeoutRef.current);
+      }
     },
     [],
   );
 
   useEffect(() => {
     if (!open) return;
-    const timeout = window.setTimeout(() => {
-      setOpen(false);
-    }, 8000);
+    const scheduleClose = () => {
+      if (openTimeoutRef.current !== null) {
+        window.clearTimeout(openTimeoutRef.current);
+      }
+      openTimeoutRef.current = window.setTimeout(() => {
+        setOpen(false);
+        openTimeoutRef.current = null;
+      }, 8000);
+    };
 
-    return () => window.clearTimeout(timeout);
+    scheduleClose();
+    return () => {
+      if (openTimeoutRef.current !== null) {
+        window.clearTimeout(openTimeoutRef.current);
+      }
+      openTimeoutRef.current = null;
+    };
   }, [open]);
 
   useEffect(() => {
@@ -284,6 +300,17 @@ export const BinauralPlayer = () => {
       cancelled = true;
     };
   }, [musicSource?.kind, musicSource?.videoId]);
+
+  const resetOpenTimeout = () => {
+    if (!open) return;
+    if (openTimeoutRef.current !== null) {
+      window.clearTimeout(openTimeoutRef.current);
+    }
+    openTimeoutRef.current = window.setTimeout(() => {
+      setOpen(false);
+      openTimeoutRef.current = null;
+    }, 8000);
+  };
 
   const active = useMemo(() => PRESETS.find((p) => p.id === activeId) ?? PRESETS[0], [activeId]);
 
@@ -470,85 +497,89 @@ export const BinauralPlayer = () => {
             : "pointer-events-none translate-y-2 scale-95 opacity-0 shadow-none"
         }`}
         aria-hidden={!open}
+        onPointerDownCapture={resetOpenTimeout}
+        onPointerMoveCapture={resetOpenTimeout}
+        onFocusCapture={resetOpenTimeout}
+        onClickCapture={resetOpenTimeout}
+        onKeyDownCapture={resetOpenTimeout}
       >
         <div className="text-[10px] tracking-[0.3em] text-muted-foreground mb-3">
           FOCUS BEATS
         </div>
         <div className="flex flex-col gap-1 mb-4">
-            {PRESETS.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => {
-                  setActiveId(p.id);
-                  play(p);
-                }}
-                className={`flex items-center justify-between rounded-lg px-3 py-2 text-left transition-colors ${
-                  activeId === p.id
-                    ? "bg-white/10"
-                    : "hover:bg-white/[0.05]"
-                }`}
-              >
-                <span className="text-xs font-medium tracking-[0.2em]">{p.label}</span>
-                <span className="text-[10px] text-muted-foreground">{p.desc}</span>
-              </button>
-            ))}
-          </div>
-          <div className="border-t border-white/5 pt-3">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[10px] tracking-[0.3em] text-muted-foreground">VOLUME</span>
-              <span className="text-[10px] text-muted-foreground tabular-nums">
-                {Math.round(volume * 200)}%
-              </span>
-            </div>
-            <input
-              type="range"
-              min={0}
-              max={0.5}
-              step={0.005}
-              value={volume}
-              onChange={(e) => setVolume(parseFloat(e.target.value))}
-              className="w-full accent-white"
-            />
-            <p className="mt-3 text-[10px] text-muted-foreground/70 leading-relaxed">
-              Use headphones for the binaural effect.
-            </p>
-          </div>
+          {PRESETS.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => {
+                setActiveId(p.id);
+                play(p);
+              }}
+              className={`flex items-center justify-between rounded-lg px-3 py-2 text-left transition-colors ${
+                activeId === p.id ? "bg-white/10" : "hover:bg-white/[0.05]"
+              }`}
+            >
+              <span className="text-xs font-medium tracking-[0.2em]">{p.label}</span>
+              <span className="text-[10px] text-muted-foreground">{p.desc}</span>
+            </button>
+          ))}
+        </div>
 
-            <div className="mt-4 border-t border-white/5 pt-3">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] tracking-[0.3em] text-muted-foreground">MUSIC</span>
-                {musicSource ? (
-                  <button
-                    onClick={stopMusic}
-                    className="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <Square className="w-3 h-3" />
-                    STOP
-                  </button>
-                ) : null}
-              </div>
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-                <input
-                  value={musicUrl}
-                  onChange={(e) => setMusicUrl(e.target.value)}
-                  placeholder="Paste audio file or YouTube link"
-                  className="w-full rounded-xl bg-white/[0.04] border border-white/10 pl-9 pr-3 py-2 text-[11px] text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-white/20"
-                />
-              </div>
+        <div className="mt-4 border-t border-white/5 pt-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] tracking-[0.3em] text-muted-foreground">MUSIC</span>
+            {musicSource ? (
               <button
-                onClick={loadMusic}
-                className="shrink-0 inline-flex items-center gap-1 rounded-xl bg-white text-black px-3 py-2 text-[10px] font-medium tracking-[0.2em] transition-colors hover:bg-white/90"
+                onClick={stopMusic}
+                className="inline-flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
               >
-                <Music2 className="w-3.5 h-3.5" />
-                LOAD
+                <Square className="w-3 h-3" />
+                STOP
               </button>
-            </div>
-            <p className="mt-2 text-[10px] text-muted-foreground/70 leading-relaxed">
-              Direct audio files play in-app. Real YouTube watch links open as an embedded player.
-            </p>
+            ) : null}
           </div>
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              <input
+                value={musicUrl}
+                onChange={(e) => setMusicUrl(e.target.value)}
+                placeholder="Paste audio file or YouTube link"
+                className="w-full rounded-xl bg-white/[0.04] border border-white/10 pl-9 pr-3 py-2 text-[11px] text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-white/20"
+              />
+            </div>
+            <button
+              onClick={loadMusic}
+              className="shrink-0 inline-flex items-center gap-1 rounded-xl bg-white text-black px-3 py-2 text-[10px] font-medium tracking-[0.2em] transition-colors hover:bg-white/90"
+            >
+              <Music2 className="w-3.5 h-3.5" />
+              LOAD
+            </button>
+          </div>
+          <p className="mt-2 text-[10px] text-muted-foreground/70 leading-relaxed">
+            Direct audio files play in-app. Real YouTube watch links open as an embedded player.
+          </p>
+        </div>
+
+        <div className="mt-4 border-t border-white/5 pt-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] tracking-[0.3em] text-muted-foreground">VOLUME</span>
+            <span className="text-[10px] text-muted-foreground tabular-nums">
+              {Math.round(volume * 200)}%
+            </span>
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={0.5}
+            step={0.005}
+            value={volume}
+            onChange={(e) => setVolume(parseFloat(e.target.value))}
+            className="w-full accent-white"
+          />
+          <p className="mt-3 text-[10px] text-muted-foreground/70 leading-relaxed">
+            Use headphones for the binaural effect.
+          </p>
+        </div>
       </div>
 
     </div>
