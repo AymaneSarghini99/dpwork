@@ -231,9 +231,9 @@ const Index = () => {
       />
       <FocusCalendar open={calendarOpen} onOpenChange={setCalendarOpen} byDay={byDay} />
       <Dialog open={manualOpen} onOpenChange={setManualOpen}>
-        <DialogContent className="glass border-white/10 bg-black/85 backdrop-blur-2xl text-foreground">
-          <DialogHeader className="space-y-3">
-            <DialogTitle className="text-xs tracking-[0.4em] text-muted-foreground font-normal">
+        <DialogContent className="glass border-white/10 bg-black/80 backdrop-blur-2xl text-foreground">
+          <DialogHeader className="space-y-2">
+            <DialogTitle className="text-[10px] tracking-[0.45em] text-muted-foreground font-medium uppercase">
               SET TIMER
             </DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground/80">
@@ -241,27 +241,31 @@ const Index = () => {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid grid-cols-2 gap-3 pt-2">
+          <div className="grid grid-cols-2 gap-3 pt-1">
             <div className="space-y-2">
-              <label className="text-[10px] tracking-[0.3em] text-muted-foreground">HOURS</label>
+              <label className="text-[10px] tracking-[0.35em] text-muted-foreground uppercase">Hours</label>
               <Input
-                type="number"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 min={0}
                 max={12}
                 value={manualHours}
                 onChange={(e) => setManualHours(e.target.value)}
-                className="bg-white/[0.04] border-white/10 text-foreground"
+                className="h-11 rounded-full border-white/10 bg-white/[0.04] text-center text-base text-foreground shadow-none outline-none placeholder:text-muted-foreground/40 focus-visible:border-white/20 focus-visible:ring-0"
               />
             </div>
             <div className="space-y-2">
-              <label className="text-[10px] tracking-[0.3em] text-muted-foreground">MINUTES</label>
+              <label className="text-[10px] tracking-[0.35em] text-muted-foreground uppercase">Minutes</label>
               <Input
-                type="number"
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 min={0}
                 max={59}
                 value={manualMinutes}
                 onChange={(e) => setManualMinutes(e.target.value)}
-                className="bg-white/[0.04] border-white/10 text-foreground"
+                className="h-11 rounded-full border-white/10 bg-white/[0.04] text-center text-base text-foreground shadow-none outline-none placeholder:text-muted-foreground/40 focus-visible:border-white/20 focus-visible:ring-0"
               />
             </div>
           </div>
