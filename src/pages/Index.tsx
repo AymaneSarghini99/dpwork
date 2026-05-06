@@ -4,7 +4,16 @@ import { FlipDigit } from "@/components/FlipDigit";
 import { StatsWidget } from "@/components/StatsWidget";
 import { FocusCalendar } from "@/components/FocusCalendar";
 import { BinauralPlayer } from "@/components/BinauralPlayer";
-import { useSessions, formatDuration } from "@/lib/sessions";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { useSessions, formatDuration, formatHours } from "@/lib/sessions";
 import { toast } from "sonner";
 
 const DURATIONS = [25, 45, 60, 90, 120];
@@ -14,6 +23,9 @@ const Index = () => {
   const [remaining, setRemaining] = useState(60 * 60);
   const [running, setRunning] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualHours, setManualHours] = useState("1");
+  const [manualMinutes, setManualMinutes] = useState("0");
   const intervalRef = useRef<number | null>(null);
   const startedAtRef = useRef<Date | null>(null);
   const elapsedAtPauseRef = useRef<number>(0); // accumulated focused seconds while paused
@@ -102,12 +114,37 @@ const Index = () => {
     setRemaining(duration * 60);
   };
 
+  const openManual = () => {
+    const totalMinutes = duration;
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    setManualHours(String(hours));
+    setManualMinutes(String(minutes));
+    setManualOpen(true);
+  };
+
+  const applyManual = () => {
+    const hours = Number.parseInt(manualHours, 10);
+    const minutes = Number.parseInt(manualMinutes, 10);
+    if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+      toast.error("Enter a valid time.");
+      return;
+    }
+
+    const totalMinutes = Math.max(1, hours * 60 + minutes);
+    setDur(totalMinutes);
+    setManualOpen(false);
+    toast.success("Timer updated", {
+      description: `${totalMinutes >= 60 ? `${Math.floor(totalMinutes / 60)}h ${totalMinutes % 60}m` : `${totalMinutes}m`} set manually.`,
+    });
+  };
+
   const hours = String(Math.floor(remaining / 3600)).padStart(2, "0");
   const minutes = String(Math.floor((remaining % 3600) / 60)).padStart(2, "0");
   const seconds = String(remaining % 60).padStart(2, "0");
 
   return (
-    <main className="relative min-h-screen w-full flex flex-col items-center justify-center px-6 overflow-hidden">
+    <main className="relative min-h-screen w-full flex flex-col items-center justify-start md:justify-center px-4 sm:px-6 pt-12 md:pt-0 pb-40 md:pb-6 overflow-hidden">
       {/* ambient gradient orbs */}
       <div className="pointer-events-none absolute inset-0 -z-10">
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[800px] h-[800px] rounded-full bg-white/[0.02] blur-3xl" />
@@ -118,15 +155,27 @@ const Index = () => {
         DEEP WORK
       </h1>
 
-      <div className="flex items-center gap-3 md:gap-5 animate-fade-in">
+      <button
+        type="button"
+        onDoubleClick={openManual}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            openManual();
+          }
+        }}
+        className="group flex items-center gap-2 sm:gap-3 md:gap-5 animate-fade-in outline-none"
+        aria-label="Double click to set timer manually"
+        title="Double click to set timer manually"
+      >
         <FlipDigit value={hours} />
         <Separator />
         <FlipDigit value={minutes} />
         <Separator />
         <FlipDigit value={seconds} />
-      </div>
+      </button>
 
-      <p className="mt-12 text-[11px] tracking-[0.4em] text-muted-foreground font-light animate-fade-in flex items-center gap-3">
+      <p className="mt-10 md:mt-12 text-[10px] sm:text-[11px] tracking-[0.3em] sm:tracking-[0.4em] text-muted-foreground font-light animate-fade-in flex items-center gap-3 text-center px-2">
         <span
           className={`inline-block w-1.5 h-1.5 rounded-full ${
             running ? "bg-foreground animate-pulse-soft" : "bg-muted-foreground/40"
@@ -135,7 +184,7 @@ const Index = () => {
         {running ? "FOCUS SESSION RUNNING" : remaining === 0 ? "SESSION COMPLETE" : "READY TO FOCUS"}
       </p>
 
-      <div className="mt-8 flex items-center gap-1 glass rounded-full px-1.5 py-1.5 animate-fade-in">
+      <div className="mt-8 flex flex-wrap items-center justify-center gap-1 glass rounded-full px-1.5 py-1.5 animate-fade-in max-w-[min(100%,26rem)]">
         {DURATIONS.map((m) => (
           <button
             key={m}
@@ -154,7 +203,7 @@ const Index = () => {
       <div className="mt-6 flex items-center gap-3 animate-fade-in">
         <button
           onClick={handleToggle}
-          className="group glass rounded-full pl-5 pr-6 py-3 flex items-center gap-2.5 hover:bg-white/[0.08] transition-all duration-300 hover:scale-[1.02]"
+          className="group glass rounded-full pl-5 pr-6 py-3 flex items-center gap-2.5 hover:bg-white/[0.08] transition-all duration-300 hover:scale-[1.02] min-w-[9rem] justify-center"
         >
           {running ? (
             <Pause className="w-4 h-4 fill-foreground text-foreground" />
@@ -175,12 +224,82 @@ const Index = () => {
       </div>
 
       <StatsWidget
-        today={formatDuration(todaySec)}
-        week={formatDuration(weekSec)}
-        month={formatDuration(monthSec)}
+        today={formatHours(todaySec)}
+        week={formatHours(weekSec)}
+        month={formatHours(monthSec)}
         onClick={() => setCalendarOpen(true)}
       />
       <FocusCalendar open={calendarOpen} onOpenChange={setCalendarOpen} byDay={byDay} />
+      <Dialog open={manualOpen} onOpenChange={setManualOpen}>
+        <DialogContent className="glass border-white/10 bg-black/85 backdrop-blur-2xl text-foreground">
+          <DialogHeader className="space-y-3">
+            <DialogTitle className="text-xs tracking-[0.4em] text-muted-foreground font-normal">
+              SET TIMER
+            </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground/80">
+              Choose a custom focus length in hours and minutes.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            <div className="space-y-2">
+              <label className="text-[10px] tracking-[0.3em] text-muted-foreground">HOURS</label>
+              <Input
+                type="number"
+                min={0}
+                max={12}
+                value={manualHours}
+                onChange={(e) => setManualHours(e.target.value)}
+                className="bg-white/[0.04] border-white/10 text-foreground"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-[10px] tracking-[0.3em] text-muted-foreground">MINUTES</label>
+              <Input
+                type="number"
+                min={0}
+                max={59}
+                value={manualMinutes}
+                onChange={(e) => setManualMinutes(e.target.value)}
+                className="bg-white/[0.04] border-white/10 text-foreground"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2 pt-1">
+            {[15, 30, 45, 60, 90, 120].map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => {
+                  setManualHours(String(Math.floor(m / 60)));
+                  setManualMinutes(String(m % 60));
+                }}
+                className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[10px] tracking-[0.3em] text-muted-foreground transition-colors hover:bg-white/[0.07] hover:text-foreground"
+              >
+                {m}m
+              </button>
+            ))}
+          </div>
+
+          <DialogFooter className="pt-2">
+            <button
+              type="button"
+              onClick={() => setManualOpen(false)}
+              className="rounded-full border border-white/10 px-4 py-2 text-[10px] tracking-[0.3em] text-muted-foreground transition-colors hover:bg-white/[0.05] hover:text-foreground"
+            >
+              CANCEL
+            </button>
+            <button
+              type="button"
+              onClick={applyManual}
+              className="rounded-full bg-white px-4 py-2 text-[10px] font-medium tracking-[0.3em] text-black transition-colors hover:bg-white/90"
+            >
+              APPLY
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <BinauralPlayer />
     </main>
   );

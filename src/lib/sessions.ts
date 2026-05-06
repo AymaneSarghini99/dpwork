@@ -59,6 +59,13 @@ export function formatDuration(seconds: number): string {
   return `${m}m`;
 }
 
+export function formatHours(seconds: number): string {
+  if (seconds <= 0) return "0h";
+  const hours = seconds / 3600;
+  const rounded = Math.round(hours * 10) / 10;
+  return `${rounded % 1 === 0 ? rounded.toFixed(0) : rounded.toFixed(1)}h`;
+}
+
 export function useSessions() {
   const [sessions, setSessions] = useState<FocusSession[]>(() => read());
 

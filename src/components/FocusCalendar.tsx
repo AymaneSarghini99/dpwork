@@ -32,7 +32,7 @@ export const FocusCalendar = ({ open, onOpenChange, byDay }: FocusCalendarProps)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg glass border-white/10 bg-black/80 backdrop-blur-2xl text-foreground">
+      <DialogContent className="glass border-white/10 bg-black/80 backdrop-blur-2xl text-foreground">
         <DialogHeader>
           <DialogTitle className="text-xs tracking-[0.4em] text-muted-foreground font-normal text-center">
             FOCUS HISTORY

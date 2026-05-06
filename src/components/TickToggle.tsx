@@ -14,7 +14,7 @@ export const TickToggle = ({ running, remaining }: TickToggleProps) => {
 
   const ensureCtx = () => {
     if (!ctxRef.current) {
-      const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+      const Ctx = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       ctxRef.current = new Ctx();
       // pre-build short noise buffer for the mechanical "click" body
       const ctx = ctxRef.current;
@@ -72,7 +72,9 @@ export const TickToggle = ({ running, remaining }: TickToggleProps) => {
       noise.stop(t + 0.06);
       osc.start(t);
       osc.stop(t + 0.07);
-    } catch {}
+    } catch {
+      return;
+    }
   };
 
   // play tick whenever remaining changes while running
