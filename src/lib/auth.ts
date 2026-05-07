@@ -14,11 +14,11 @@ export interface AuthUser {
 }
 
 export const signInWithGoogle = async () => {
-  // Get the current origin, handling both local and production environments
-  const origin = window.location.origin
-  const redirectTo = `${origin}/auth/callback`
+  // Hardcode the exact redirect URL for testing
+  const redirectTo = 'https://dpwork.vercel.app/auth/callback'
   
   console.log('Google OAuth redirect URL:', redirectTo)
+  console.log('Current origin:', window.location.origin)
   
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
@@ -31,7 +31,10 @@ export const signInWithGoogle = async () => {
     }
   })
   
-  if (error) throw error
+  if (error) {
+    console.error('Google OAuth error:', error)
+    throw error
+  }
   return data
 }
 
