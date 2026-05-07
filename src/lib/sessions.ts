@@ -1,19 +1,22 @@
 import { useEffect, useState, useCallback } from "react";
+import { supabase } from "./auth";
+import { useAuth } from "@/contexts/AuthContext";
 
 export interface FocusSession {
   id: string;
+  user_id: string;
   startedAt: string; // ISO
   endedAt: string; // ISO
   durationSec: number; // actual seconds focused
   plannedMin: number;
 }
 
-const STORAGE_KEY = "deepwork.sessions.v1";
+const LEGACY_STORAGE_KEY = "deepwork.sessions.v1";
 const EVENT = "deepwork:sessions-updated";
 
-function read(): FocusSession[] {
+function readLegacy(): FocusSession[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) return [];
     return JSON.parse(raw) as FocusSession[];
   } catch {
@@ -21,15 +24,23 @@ function read(): FocusSession[] {
   }
 }
 
-function write(sessions: FocusSession[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+export async function saveSession(s: Omit<FocusSession, "id">) {
+  const { data, error } = await supabase
+    .from('focus_sessions')
+    .insert({ ...s, id: crypto.randomUUID() })
+    .select()
+    .single();
+  
+  if (error) {
+    console.error('Error saving session:', error);
+    // Fallback to localStorage for offline support
+    const legacy = readLegacy();
+    legacy.push({ ...s, id: crypto.randomUUID(), user_id: s.user_id || 'local' });
+    localStorage.setItem(LEGACY_STORAGE_KEY, JSON.stringify(legacy));
+  }
+  
   window.dispatchEvent(new Event(EVENT));
-}
-
-export function saveSession(s: Omit<FocusSession, "id">) {
-  const all = read();
-  all.push({ ...s, id: crypto.randomUUID() });
-  write(all);
+  return data;
 }
 
 function startOfDay(d: Date) {
@@ -67,17 +78,52 @@ export function formatHours(seconds: number): string {
 }
 
 export function useSessions() {
-  const [sessions, setSessions] = useState<FocusSession[]>(() => read());
+  const { user } = useAuth();
+  const [sessions, setSessions] = useState<FocusSession[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchSessions = useCallback(async () => {
+    if (!user) {
+      // Load legacy sessions when not authenticated
+      const legacySessions = readLegacy();
+      setSessions(legacySessions);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('focus_sessions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('endedAt', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching sessions:', error);
+        // Fallback to legacy sessions
+        const legacySessions = readLegacy();
+        setSessions(legacySessions);
+      } else {
+        setSessions(data || []);
+      }
+    } catch (error) {
+      console.error('Error fetching sessions:', error);
+      const legacySessions = readLegacy();
+      setSessions(legacySessions);
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
 
   useEffect(() => {
-    const refresh = () => setSessions(read());
+    fetchSessions();
+  }, [fetchSessions]);
+
+  useEffect(() => {
+    const refresh = () => fetchSessions();
     window.addEventListener(EVENT, refresh);
-    window.addEventListener("storage", refresh);
-    return () => {
-      window.removeEventListener(EVENT, refresh);
-      window.removeEventListener("storage", refresh);
-    };
-  }, []);
+    return () => window.removeEventListener(EVENT, refresh);
+  }, [fetchSessions]);
 
   const now = new Date();
   const todayStart = startOfDay(now).getTime();
@@ -95,14 +141,19 @@ export function useSessions() {
     byDay[key] = (byDay[key] || 0) + s.durationSec;
   }
 
-  const add = useCallback((s: Omit<FocusSession, "id">) => saveSession(s), []);
+  const add = useCallback((s: Omit<FocusSession, "id">) => {
+    const sessionWithUser = { ...s, user_id: user?.id || 'local' };
+    return saveSession(sessionWithUser);
+  }, [user]);
 
   return {
     sessions,
+    loading,
     todaySec: today,
     weekSec: week,
     monthSec: month,
     byDay,
     addSession: add,
+    refetch: fetchSessions,
   };
 }

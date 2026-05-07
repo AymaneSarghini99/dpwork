@@ -1,9 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { Play, Pause, RotateCcw } from "lucide-react";
+import { Play, Pause, RotateCcw, LogOut } from "lucide-react";
 import { FlipDigit } from "@/components/FlipDigit";
 import { StatsWidget } from "@/components/StatsWidget";
 import { FocusCalendar } from "@/components/FocusCalendar";
 import { BinauralPlayer } from "@/components/BinauralPlayer";
+import TaskWidget from "@/components/TaskWidget";
+import { useAuth } from "@/contexts/AuthContext";
+import { signOut } from "@/lib/auth";
+import { playCompletionSound } from "@/lib/sound";
 import {
   Dialog,
   DialogContent,
@@ -19,6 +23,7 @@ import { toast } from "sonner";
 const DURATIONS = [25, 45, 60, 90, 120];
 
 const Index = () => {
+  const { user } = useAuth();
   const [duration, setDuration] = useState(60);
   const [remaining, setRemaining] = useState(60 * 60);
   const [running, setRunning] = useState(false);
@@ -58,9 +63,11 @@ const Index = () => {
       endedAt: new Date().toISOString(),
       durationSec: focusedSec,
       plannedMin: duration,
+      user_id: user?.id || 'local'
     });
     startedAtRef.current = null;
     elapsedAtPauseRef.current = 0;
+    playCompletionSound();
     toast.success("Session complete", {
       description: `${formatDuration(focusedSec)} of deep work logged.`,
     });
@@ -88,6 +95,7 @@ const Index = () => {
           endedAt: new Date().toISOString(),
           durationSec: focused,
           plannedMin: duration,
+          user_id: user?.id || 'local'
         });
       }
       startedAtRef.current = null;
@@ -106,6 +114,7 @@ const Index = () => {
           endedAt: new Date().toISOString(),
           durationSec: focused,
           plannedMin: duration,
+          user_id: user?.id || 'local'
         });
       }
       startedAtRef.current = null;
@@ -151,8 +160,8 @@ const Index = () => {
         <div className="absolute bottom-0 right-0 w-[500px] h-[500px] rounded-full bg-white/[0.015] blur-3xl" />
       </div>
 
-      <h1 className="text-xs md:text-sm text-spaced text-muted-foreground font-light mb-12 animate-fade-in">
-        DEEP WORK
+      <h1 className="text-xs md:text-sm text-spaced text-muted-foreground font-light mb-12 animate-fade-in flex items-center justify-center w-full max-w-2xl">
+        <span>DEEP WORK</span>
       </h1>
 
       <button
@@ -305,6 +314,7 @@ const Index = () => {
         </DialogContent>
       </Dialog>
       <BinauralPlayer />
+      <TaskWidget />
     </main>
   );
 };
