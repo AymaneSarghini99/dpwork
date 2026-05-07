@@ -491,7 +491,7 @@ export const BinauralPlayer = () => {
       </button>
 
       <div
-        className={`absolute bottom-[calc(100%+0.75rem)] left-0 w-full md:w-72 glass rounded-2xl p-4 bg-black/80 backdrop-blur-2xl border border-white/10 origin-bottom-left transition-all duration-300 ease-out ${
+        className={`absolute bottom-[calc(100%+0.75rem)] left-0 right-0 md:right-auto md:w-72 glass rounded-2xl p-4 bg-black/80 backdrop-blur-2xl border border-white/10 origin-bottom-left transition-all duration-300 ease-out ${
           open
             ? "pointer-events-auto translate-y-0 scale-100 opacity-100 shadow-[0_0_50px_hsl(0_0%_0%_/_0.35)]"
             : "pointer-events-none translate-y-2 scale-95 opacity-0 shadow-none"

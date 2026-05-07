@@ -330,8 +330,14 @@ const Index = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <BinauralPlayer />
-      <TaskWidget />
+      <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
+        <div className="flex-1">
+          <BinauralPlayer />
+        </div>
+        <div className="lg:flex-shrink-0">
+          <TaskWidget />
+        </div>
+      </div>
     </main>
   );
 };
