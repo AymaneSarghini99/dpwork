@@ -11,7 +11,7 @@ export interface FocusSession {
   planned_min: number;
 }
 
-const LEGACY_STORAGE_KEY = "deepwork.sessions.legacy";
+const LEGACY_STORAGE_KEY = "deepwork.sessions";
 const EVENT = "deepwork:sessions-updated";
 
 function readLegacy(): FocusSession[] {
