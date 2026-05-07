@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Play, Pause, RotateCcw, LogOut } from "lucide-react";
 import { FlipDigit } from "@/components/FlipDigit";
 import { StatsWidget } from "@/components/StatsWidget";
@@ -24,6 +25,7 @@ const DURATIONS = [25, 45, 60, 90, 120];
 
 const Index = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [duration, setDuration] = useState(60);
   const [remaining, setRemaining] = useState(60 * 60);
   const [running, setRunning] = useState(false);
@@ -35,6 +37,21 @@ const Index = () => {
   const startedAtRef = useRef<Date | null>(null);
   const elapsedAtPauseRef = useRef<number>(0); // accumulated focused seconds while paused
   const { todaySec, weekSec, monthSec, byDay, addSession } = useSessions();
+
+  // Handle OAuth parameters if user lands directly on main page
+  useEffect(() => {
+    const handleOAuthParams = async () => {
+      const hashParams = new URLSearchParams(window.location.hash.substring(1));
+      const hasAuthParams = hashParams.has('access_token') || hashParams.has('refresh_token');
+      
+      if (hasAuthParams && !user) {
+        // Redirect to auth callback to handle OAuth parameters
+        navigate('/auth/callback', { replace: true });
+      }
+    };
+
+    handleOAuthParams();
+  }, [user, navigate]);
 
   // Tick
   useEffect(() => {

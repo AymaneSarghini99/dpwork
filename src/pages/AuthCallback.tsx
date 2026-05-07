@@ -9,26 +9,52 @@ const AuthCallback = () => {
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
-        // Let Supabase handle the OAuth callback from the URL hash
-        const { data, error } = await supabase.auth.getSession()
+        // Handle the OAuth callback from the URL hash
+        const hashParams = new URLSearchParams(window.location.hash.substring(1))
+        const accessToken = hashParams.get('access_token')
+        const refreshToken = hashParams.get('refresh_token')
         
-        if (error) {
-          console.error('Auth callback error:', error)
-          navigate('/login')
-          return
-        }
+        if (accessToken || refreshToken) {
+          // Let Supabase handle the OAuth callback
+          const { data, error } = await supabase.auth.getSession()
+          
+          if (error) {
+            console.error('Auth callback error:', error)
+            navigate('/login')
+            return
+          }
 
-        // Wait a moment for Supabase to process the session
-        await new Promise(resolve => setTimeout(resolve, 1000))
-        
-        // Check if we have a session after processing
-        const { data: { session } } = await supabase.auth.getSession()
-        
-        if (session) {
-          // Successfully authenticated, redirect to main app
-          navigate('/')
+          // Wait for session to be established
+          let retries = 0
+          const maxRetries = 10
+          
+          const checkSession = async (): Promise<boolean> => {
+            const { data: { session } } = await supabase.auth.getSession()
+            
+            if (session) {
+              return true
+            }
+            
+            if (retries < maxRetries) {
+              retries++
+              await new Promise(resolve => setTimeout(resolve, 500))
+              return checkSession()
+            }
+            
+            return false
+          }
+          
+          const hasSession = await checkSession()
+          
+          if (hasSession) {
+            // Successfully authenticated, redirect to main app
+            navigate('/')
+          } else {
+            // No session after retries, redirect to login
+            navigate('/login')
+          }
         } else {
-          // No session found, redirect to login
+          // No auth parameters, redirect to login
           navigate('/login')
         }
       } catch (error) {

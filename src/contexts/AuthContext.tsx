@@ -28,8 +28,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   useEffect(() => {
     const initializeAuth = async () => {
       try {
-        const currentUser = await getCurrentUser()
-        setUser(currentUser)
+        // Check URL hash for OAuth parameters first
+        const hashParams = new URLSearchParams(window.location.hash.substring(1))
+        const hasAuthParams = hashParams.has('access_token') || hashParams.has('refresh_token')
+        
+        if (!hasAuthParams) {
+          // Only get current user if not in auth callback
+          const currentUser = await getCurrentUser()
+          setUser(currentUser)
+        }
       } catch (error) {
         console.error('Error initializing auth:', error)
       } finally {
@@ -40,6 +47,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     initializeAuth()
 
     const { data: { subscription } } = onAuthStateChange((user) => {
+      console.log('Auth state changed:', user?.email)
       setUser(user)
       setLoading(false)
     })

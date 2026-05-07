@@ -14,10 +14,16 @@ export interface AuthUser {
 }
 
 export const signInWithGoogle = async () => {
+  // Get the current origin, handling both local and production environments
+  const origin = window.location.origin
+  const redirectTo = `${origin}/auth/callback`
+  
+  console.log('Google OAuth redirect URL:', redirectTo)
+  
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `${window.location.origin}/auth/callback`,
+      redirectTo,
       queryParams: {
         access_type: 'offline',
         prompt: 'consent',
