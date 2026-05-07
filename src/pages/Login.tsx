@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { signInWithGoogle, signInWithEmail, resendConfirmationEmail } from '@/lib/auth'
 import { Loader2, Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
 
 const Login = () => {
+  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -30,6 +31,8 @@ const Login = () => {
     try {
       setLoading(true)
       await signInWithEmail(email, password)
+      // Successful sign-in - redirect to home page
+      navigate('/')
     } catch (error: any) {
       console.error('Error signing in with email:', error)
       if (error.message === 'Email not confirmed') {
