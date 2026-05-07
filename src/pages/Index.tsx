@@ -76,10 +76,10 @@ const Index = () => {
     setRunning(false);
     const startedAt = startedAtRef.current ?? new Date(Date.now() - focusedSec * 1000);
     addSession({
-      startedAt: startedAt.toISOString(),
-      endedAt: new Date().toISOString(),
-      durationSec: focusedSec,
-      plannedMin: duration,
+      started_at: startedAt.toISOString(),
+      ended_at: new Date().toISOString(),
+      duration_sec: focusedSec,
+      planned_min: duration,
       user_id: user?.id || 'local'
     });
     startedAtRef.current = null;
@@ -108,10 +108,10 @@ const Index = () => {
       const focused = duration * 60 - remaining;
       if (focused >= 60) {
         addSession({
-          startedAt: startedAtRef.current.toISOString(),
-          endedAt: new Date().toISOString(),
-          durationSec: focused,
-          plannedMin: duration,
+          started_at: startedAtRef.current.toISOString(),
+          ended_at: new Date().toISOString(),
+          duration_sec: focused,
+          planned_min: duration,
           user_id: user?.id || 'local'
         });
       }
@@ -127,10 +127,10 @@ const Index = () => {
       const focused = duration * 60 - remaining;
       if (focused >= 60) {
         addSession({
-          startedAt: startedAtRef.current.toISOString(),
-          endedAt: new Date().toISOString(),
-          durationSec: focused,
-          plannedMin: duration,
+          started_at: startedAtRef.current.toISOString(),
+          ended_at: new Date().toISOString(),
+          duration_sec: focused,
+          planned_min: duration,
           user_id: user?.id || 'local'
         });
       }

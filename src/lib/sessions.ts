@@ -5,10 +5,10 @@ import { useAuth } from "@/contexts/AuthContext";
 export interface FocusSession {
   id: string;
   user_id: string;
-  startedAt: string; // ISO
-  endedAt: string; // ISO
-  durationSec: number; // actual seconds focused
-  plannedMin: number;
+  started_at: string; // ISO
+  ended_at: string; // ISO
+  duration_sec: number; // actual seconds focused
+  planned_min: number;
 }
 
 const LEGACY_STORAGE_KEY = "deepwork.sessions.v1";
@@ -96,7 +96,7 @@ export function useSessions() {
         .from('focus_sessions')
         .select('*')
         .eq('user_id', user.id)
-        .order('endedAt', { ascending: false });
+        .order('ended_at', { ascending: false });
 
       if (error) {
         console.error('Error fetching sessions:', error);
@@ -133,12 +133,12 @@ export function useSessions() {
   let today = 0, week = 0, month = 0;
   const byDay: Record<string, number> = {};
   for (const s of sessions) {
-    const t = new Date(s.endedAt).getTime();
-    if (t >= todayStart) today += s.durationSec;
-    if (t >= weekStart) week += s.durationSec;
-    if (t >= monthStart) month += s.durationSec;
-    const key = startOfDay(new Date(s.endedAt)).toDateString();
-    byDay[key] = (byDay[key] || 0) + s.durationSec;
+    const t = new Date(s.ended_at).getTime();
+    if (t >= todayStart) today += s.duration_sec;
+    if (t >= weekStart) week += s.duration_sec;
+    if (t >= monthStart) month += s.duration_sec;
+    const key = startOfDay(new Date(s.ended_at)).toDateString();
+    byDay[key] = (byDay[key] || 0) + s.duration_sec;
   }
 
   const add = useCallback((s: Omit<FocusSession, "id">) => {
