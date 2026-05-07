@@ -9,6 +9,7 @@ import Index from "./pages/Index.tsx";
 import Login from "./pages/Login.tsx";
 import SignUp from "./pages/SignUp.tsx";
 import ConfirmEmail from "./pages/ConfirmEmail.tsx";
+import AuthCallback from "./pages/AuthCallback.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -24,6 +25,7 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<SignUp />} />
             <Route path="/confirm-email" element={<ConfirmEmail />} />
+            <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="/" element={
               <ProtectedRoute>
                 <Index />
