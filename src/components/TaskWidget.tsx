@@ -1,9 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { Plus, X, Check, LogOut, List } from 'lucide-react'
+import { Plus, X, Check, LogOut } from 'lucide-react'
 import { supabase } from '@/lib/auth'
 import { useAuth } from '@/contexts/AuthContext'
 import { toast } from 'sonner'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 interface Task {
   id: string
@@ -18,7 +17,6 @@ const TaskWidget = () => {
   const [tasks, setTasks] = useState<Task[]>([])
   const [newTaskText, setNewTaskText] = useState('')
   const [isAdding, setIsAdding] = useState(false)
-  const [mobileDialogOpen, setMobileDialogOpen] = useState(false)
   const [position, setPosition] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
@@ -171,102 +169,7 @@ const TaskWidget = () => {
       }}
       onMouseDown={handleMouseDown}
     >
-      {/* Mobile: Small icon, Desktop: Full widget */}
-      <div className="lg:hidden">
-        <button
-          onClick={() => setMobileDialogOpen(true)}
-          onMouseDown={(e) => e.stopPropagation()}
-          className="w-12 h-12 rounded-full glass flex items-center justify-center hover:bg-white/[0.08] transition-colors shadow-lg"
-        >
-          <List className="w-5 h-5 text-foreground" />
-        </button>
-      </div>
-      
-      {/* Mobile Dialog */}
-      <Dialog open={mobileDialogOpen} onOpenChange={setMobileDialogOpen}>
-        <DialogContent className="glass border-white/10 bg-black/80 backdrop-blur-2xl text-foreground max-w-sm mx-4">
-          <DialogHeader>
-            <DialogTitle className="text-xs tracking-[0.35em] text-muted-foreground uppercase font-medium text-center">
-              Tasks ({tasks.length})
-            </DialogTitle>
-          </DialogHeader>
-          
-          <div className="space-y-3 mt-4">
-            {tasks.length < 3 && !isAdding && (
-              <button
-                onClick={() => setIsAdding(true)}
-                className="w-full rounded-lg border border-white/10 px-3 py-2 text-[10px] tracking-[0.3em] text-muted-foreground transition-colors hover:bg-white/[0.05] hover:text-foreground"
-              >
-                + Add Task
-              </button>
-            )}
-
-            {isAdding && (
-              <div className="space-y-2 animate-fade-in">
-                <input
-                  type="text"
-                  value={newTaskText}
-                  onChange={(e) => setNewTaskText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      addTask()
-                    } else if (e.key === 'Escape') {
-                      setIsAdding(false)
-                      setNewTaskText('')
-                    }
-                  }}
-                  placeholder="Enter task..."
-                  className="w-full px-3 py-2 rounded-lg border border-white/10 bg-white/[0.04] text-xs text-foreground placeholder:text-muted-foreground/40 focus-visible:border-white/20 focus-visible:ring-0 outline-none"
-                  autoFocus
-                />
-                <div className="flex gap-2">
-                  <button
-                    onClick={addTask}
-                    className="flex-1 rounded-lg bg-white px-3 py-1.5 text-[10px] font-medium tracking-[0.3em] text-black transition-colors hover:bg-white/90"
-                  >
-                    Add
-                  </button>
-                  <button
-                    onClick={() => {
-                      setIsAdding(false)
-                      setNewTaskText('')
-                    }}
-                    className="rounded-lg border border-white/10 px-3 py-1.5 text-[10px] tracking-[0.3em] text-muted-foreground transition-colors hover:bg-white/[0.05] hover:text-foreground"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-2 max-h-60 overflow-y-auto">
-              {tasks.map((task) => (
-                <div
-                  key={task.id}
-                  className="flex items-center gap-2 p-2 rounded-lg glass hover:bg-white/[0.04] transition-colors"
-                >
-                  <button
-                    onClick={() => toggleTask(task.id, !task.completed)}
-                    className="w-4 h-4 rounded-full border border-white/20 flex items-center justify-center hover:border-white/40 transition-colors"
-                  >
-                    {task.completed && <Check className="w-2 h-2 text-foreground" />}
-                  </button>
-                  <span className="flex-1 text-xs text-foreground truncate">
-                    {task.text}
-                  </span>
-                  <button
-                    onClick={() => deleteTask(task.id)}
-                    className="w-4 h-4 rounded-full flex items-center justify-center hover:bg-white/[0.08] transition-colors"
-                  >
-                    <X className="w-2 h-2 text-muted-foreground" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-      
+            
       <div className="hidden lg:block glass rounded-2xl p-4 min-w-[280px] max-w-[320px] space-y-3 select-none">
         <div className="flex items-center justify-between">
           <h3 className="text-[10px] tracking-[0.35em] text-muted-foreground uppercase font-medium">

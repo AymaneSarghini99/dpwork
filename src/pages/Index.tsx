@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Play, Pause, RotateCcw, LogOut } from "lucide-react";
+import { Play, Pause, RotateCcw, LogOut, BarChart3 } from "lucide-react";
 import { FlipDigit } from "@/components/FlipDigit";
 import { StatsWidget } from "@/components/StatsWidget";
 import { FocusCalendar } from "@/components/FocusCalendar";
@@ -30,6 +30,7 @@ const Index = () => {
   const [remaining, setRemaining] = useState(60 * 60);
   const [running, setRunning] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [mobileStatsOpen, setMobileStatsOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualHours, setManualHours] = useState("1");
   const [manualMinutes, setManualMinutes] = useState("0");
@@ -330,6 +331,56 @@ const Index = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Mobile Stats Icon - Top Right */}
+      <div className="lg:hidden fixed top-6 right-6 z-40">
+        <button
+          onClick={() => setMobileStatsOpen(true)}
+          className="w-12 h-12 rounded-full glass flex items-center justify-center hover:bg-white/[0.08] transition-colors shadow-lg"
+        >
+          <BarChart3 className="w-5 h-5 text-foreground" />
+        </button>
+      </div>
+
+      {/* Mobile Stats Dialog */}
+      <Dialog open={mobileStatsOpen} onOpenChange={setMobileStatsOpen}>
+        <DialogContent className="glass border-white/10 bg-black/80 backdrop-blur-2xl text-foreground max-w-sm mx-4">
+          <DialogHeader>
+            <DialogTitle className="text-xs tracking-[0.35em] text-muted-foreground uppercase font-medium text-center">
+              Focus Statistics
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4 mt-4">
+            {/* Stats */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="text-center">
+                <div className="text-xs tracking-[0.2em] text-muted-foreground font-medium mb-1">TODAY</div>
+                <div className="text-sm font-medium text-foreground tabular-nums">{formatHours(todaySec)}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-xs tracking-[0.2em] text-muted-foreground font-medium mb-1">WEEK</div>
+                <div className="text-sm font-medium text-foreground tabular-nums">{formatHours(weekSec)}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-xs tracking-[0.2em] text-muted-foreground font-medium mb-1">MONTH</div>
+                <div className="text-sm font-medium text-foreground tabular-nums">{formatHours(monthSec)}</div>
+              </div>
+            </div>
+
+            {/* Calendar Button */}
+            <button
+              onClick={() => {
+                setMobileStatsOpen(false);
+                setCalendarOpen(true);
+              }}
+              className="w-full rounded-lg border border-white/10 px-3 py-2 text-[10px] tracking-[0.3em] text-muted-foreground transition-colors hover:bg-white/[0.05] hover:text-foreground"
+            >
+              View Calendar
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <div className="flex flex-col lg:flex-row gap-4 lg:gap-6">
         <div className="flex-1">
           <BinauralPlayer />

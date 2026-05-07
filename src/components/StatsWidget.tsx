@@ -11,7 +11,7 @@ export const StatsWidget = ({ today, week, month, onClick }: StatsWidgetProps) =
   return (
     <button
       onClick={onClick}
-      className="group fixed bottom-4 left-4 right-4 md:left-auto md:right-6 md:bottom-6 glass rounded-2xl px-4 md:px-5 py-3.5 flex items-center gap-4 md:gap-5 transition-all duration-500 hover:scale-[1.01] hover:bg-white/[0.07] hover:shadow-[0_0_60px_hsl(0_0%_100%_/_0.08)] animate-fade-in"
+      className="group hidden lg:flex fixed bottom-4 left-4 right-4 md:left-auto md:right-6 md:bottom-6 glass rounded-2xl px-4 md:px-5 py-3.5 items-center gap-4 md:gap-5 transition-all duration-500 hover:scale-[1.01] hover:bg-white/[0.07] hover:shadow-[0_0_60px_hsl(0_0%_100%_/_0.08)] animate-fade-in"
     >
       <div className="w-9 h-9 rounded-xl bg-white/5 flex items-center justify-center border border-white/10 group-hover:bg-white/10 transition-colors">
         <BarChart3 className="w-4 h-4 text-foreground/80" />
