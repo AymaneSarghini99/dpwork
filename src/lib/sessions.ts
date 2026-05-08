@@ -71,10 +71,14 @@ export function formatDuration(seconds: number): string {
 }
 
 export function formatHours(seconds: number): string {
-  if (seconds <= 0) return "0h";
+  if (seconds <= 0) return "0m";
   const hours = seconds / 3600;
-  const rounded = Math.round(hours * 10) / 10;
-  return `${rounded % 1 === 0 ? rounded.toFixed(0) : rounded.toFixed(1)}h`;
+  if (hours >= 1) {
+    const rounded = Math.round(hours * 10) / 10;
+    return `${rounded % 1 === 0 ? rounded.toFixed(0) : rounded.toFixed(1)}h`;
+  }
+  const minutes = Math.round(seconds / 60);
+  return `${minutes}m`;
 }
 
 export function useSessions() {
