@@ -34,9 +34,10 @@ const Index = () => {
   const [manualOpen, setManualOpen] = useState(false);
   const [manualHours, setManualHours] = useState("1");
   const [manualMinutes, setManualMinutes] = useState("0");
-  const intervalRef = useRef<number | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
   const startedAtRef = useRef<Date | null>(null);
   const elapsedAtPauseRef = useRef<number>(0); // accumulated focused seconds while paused
+  const lastUpdateTimeRef = useRef<number>(0);
   const { todaySec, weekSec, monthSec, byDay, addSession } = useSessions();
 
   // Handle OAuth parameters if user lands directly on main page
@@ -54,21 +55,44 @@ const Index = () => {
     handleOAuthParams();
   }, [user, navigate]);
 
-  // Tick
+  // Tick with requestAnimationFrame for accurate timing across tabs
   useEffect(() => {
-    if (!running) return;
-    intervalRef.current = window.setInterval(() => {
-      setRemaining((r) => {
-        if (r <= 1) {
-          // session complete
-          completeSession(duration * 60);
-          return 0;
-        }
-        return r - 1;
-      });
-    }, 1000);
+    if (!running) {
+      lastUpdateTimeRef.current = 0;
+      return;
+    }
+
+    const animate = (timestamp: number) => {
+      if (lastUpdateTimeRef.current === 0) {
+        lastUpdateTimeRef.current = timestamp;
+      }
+
+      const elapsed = timestamp - lastUpdateTimeRef.current;
+      
+      // Update every second (1000ms)
+      if (elapsed >= 1000) {
+        const secondsPassed = Math.floor(elapsed / 1000);
+        lastUpdateTimeRef.current += secondsPassed * 1000;
+        
+        setRemaining((r) => {
+          if (r <= secondsPassed) {
+            // session complete
+            completeSession(duration * 60);
+            return 0;
+          }
+          return r - secondsPassed;
+        });
+      }
+
+      animationFrameRef.current = requestAnimationFrame(animate);
+    };
+
+    animationFrameRef.current = requestAnimationFrame(animate);
+
     return () => {
-      if (intervalRef.current) window.clearInterval(intervalRef.current);
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running]);
