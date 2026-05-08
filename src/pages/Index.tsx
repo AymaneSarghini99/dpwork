@@ -38,7 +38,133 @@ const Index = () => {
   const startedAtRef = useRef<Date | null>(null);
   const elapsedAtPauseRef = useRef<number>(0); // accumulated focused seconds while paused
   const lastUpdateTimeRef = useRef<number>(0);
+  const isMasterInstanceRef = useRef<boolean>(true); // Track if this is the master instance
   const { todaySec, weekSec, monthSec, byDay, addSession } = useSessions();
+
+  const completeSession = (focusedSec: number) => {
+    setRunning(false);
+    const startedAt = startedAtRef.current ?? new Date(Date.now() - focusedSec * 1000);
+    addSession({
+      started_at: startedAt.toISOString(),
+      ended_at: new Date().toISOString(),
+      duration_sec: focusedSec,
+      planned_min: duration,
+      user_id: user?.id || 'local'
+    });
+    startedAtRef.current = null;
+    elapsedAtPauseRef.current = 0;
+    playCompletionSound();
+    toast.success("Session complete", {
+      description: `${formatDuration(focusedSec)} of deep work logged.`,
+    });
+    
+    // Clear timer state from localStorage when completed
+    try {
+      localStorage.removeItem('deepwork_timer_state');
+    } catch (error) {
+      console.error('Error clearing timer state:', error);
+    }
+  };
+
+  // Timer state persistence and cross-browser synchronization
+  useEffect(() => {
+    const TIMER_STORAGE_KEY = 'deepwork_timer_state';
+    
+    // Load timer state from localStorage on mount
+    const loadTimerState = () => {
+      try {
+        const stored = localStorage.getItem(TIMER_STORAGE_KEY);
+        if (stored) {
+          const state = JSON.parse(stored);
+          const now = Date.now();
+          
+          // If timer was running, calculate elapsed time
+          if (state.running && state.startedAt) {
+            const elapsedSeconds = Math.floor((now - state.startedAt) / 1000);
+            const remaining = Math.max(0, state.duration * 60 - elapsedSeconds);
+            
+            setDuration(state.duration);
+            setRemaining(remaining);
+            startedAtRef.current = new Date(state.startedAt);
+            elapsedAtPauseRef.current = state.elapsedAtPause || 0;
+            
+            if (remaining > 0) {
+              setRunning(true);
+            } else {
+              // Timer completed while browser was closed
+              completeSession(state.duration * 60);
+            }
+          } else {
+            // Timer was paused or stopped
+            setDuration(state.duration);
+            setRemaining(state.remaining);
+            startedAtRef.current = state.startedAt ? new Date(state.startedAt) : null;
+            elapsedAtPauseRef.current = state.elapsedAtPause || 0;
+          }
+        }
+      } catch (error) {
+        console.error('Error loading timer state:', error);
+      }
+    };
+
+    // Save timer state to localStorage
+    const saveTimerState = () => {
+      try {
+        const state = {
+          duration,
+          remaining,
+          running,
+          startedAt: startedAtRef.current?.toISOString(),
+          elapsedAtPause: elapsedAtPauseRef.current,
+          timestamp: Date.now()
+        };
+        localStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify(state));
+      } catch (error) {
+        console.error('Error saving timer state:', error);
+      }
+    };
+
+    // Listen for storage events from other browser instances
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === TIMER_STORAGE_KEY && e.newValue) {
+        try {
+          const state = JSON.parse(e.newValue);
+          const now = Date.now();
+          
+          // Update local state based on storage event
+          setDuration(state.duration);
+          setRemaining(state.remaining);
+          setRunning(state.running);
+          startedAtRef.current = state.startedAt ? new Date(state.startedAt) : null;
+          elapsedAtPauseRef.current = state.elapsedAtPause || 0;
+          
+          // If timer was running, recalculate remaining time
+          if (state.running && state.startedAt) {
+            const elapsedSeconds = Math.floor((now - state.startedAt) / 1000);
+            const calculatedRemaining = Math.max(0, state.duration * 60 - elapsedSeconds);
+            setRemaining(calculatedRemaining);
+            
+            if (calculatedRemaining === 0) {
+              completeSession(state.duration * 60);
+            }
+          }
+        } catch (error) {
+          console.error('Error handling storage change:', error);
+        }
+      }
+    };
+
+    loadTimerState();
+    window.addEventListener('storage', handleStorageChange);
+
+    // Save state whenever timer values change
+    const stateInterval = setInterval(saveTimerState, 1000);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(stateInterval);
+    };
+  }, [duration, remaining, running]);
 
   // Handle OAuth parameters if user lands directly on main page
   useEffect(() => {
@@ -97,24 +223,7 @@ const Index = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running]);
 
-  const completeSession = (focusedSec: number) => {
-    setRunning(false);
-    const startedAt = startedAtRef.current ?? new Date(Date.now() - focusedSec * 1000);
-    addSession({
-      started_at: startedAt.toISOString(),
-      ended_at: new Date().toISOString(),
-      duration_sec: focusedSec,
-      planned_min: duration,
-      user_id: user?.id || 'local'
-    });
-    startedAtRef.current = null;
-    elapsedAtPauseRef.current = 0;
-    playCompletionSound();
-    toast.success("Session complete", {
-      description: `${formatDuration(focusedSec)} of deep work logged.`,
-    });
-  };
-
+  
   const handleToggle = () => {
     if (running) {
       // pausing — accumulate focused time
