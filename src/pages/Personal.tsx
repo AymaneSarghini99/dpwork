@@ -560,8 +560,6 @@ const Personal = () => {
               </div>
             </div>
           </div>
-
-                  </div>
         </>
       )}
 
