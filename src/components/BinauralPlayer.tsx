@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { Headphones, Link2, Music2, Square } from "lucide-react";
 import { toast } from "sonner";
+import { PlaylistWidget } from "@/components/PlaylistWidget";
 
 declare global {
   interface Window {
@@ -353,7 +354,8 @@ export const BinauralPlayer = () => {
   };
 
   return (
-    <div className="fixed bottom-4 left-4 right-4 md:bottom-6 md:left-6 md:right-auto animate-fade-in z-30">
+    <>
+      <div className="fixed bottom-4 left-4 right-4 md:bottom-6 md:left-6 md:right-auto animate-fade-in z-30">
       {musicSource?.kind === "youtube" && musicSource.embedUrl ? (
         <div
           ref={musicCardRef}
@@ -583,5 +585,8 @@ export const BinauralPlayer = () => {
       </div>
 
     </div>
+
+    <PlaylistWidget />
+    </>
   );
 };
