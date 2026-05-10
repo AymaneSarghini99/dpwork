@@ -3,7 +3,6 @@ import { format, startOfWeek, addDays, isToday, isSameDay } from "date-fns";
 import { Check, Edit2, Plus, X, Calendar, Dumbbell, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -35,6 +34,8 @@ const Personal = () => {
   const [editWorkout, setEditWorkout] = useState('');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [loading, setLoading] = useState(true);
+  const [showWorkoutPopup, setShowWorkoutPopup] = useState(false);
+  const [popupWorkout, setPopupWorkout] = useState<WorkoutPlan | null>(null);
   
   const today = new Date();
   const todayName = format(today, 'EEEE');
@@ -144,6 +145,16 @@ const Personal = () => {
     setEditingWorkout(workout);
     setEditDay(workout.day);
     setEditWorkout(workout.workout);
+  };
+
+  const handleShowWorkoutPopup = (workout: WorkoutPlan) => {
+    setPopupWorkout(workout);
+    setShowWorkoutPopup(true);
+  };
+
+  const handleCloseWorkoutPopup = () => {
+    setShowWorkoutPopup(false);
+    setPopupWorkout(null);
   };
 
   
@@ -385,6 +396,16 @@ const Personal = () => {
                         )}
                       </td>
                       <td className="p-4 text-right">
+                        {workout && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleShowWorkoutPopup(workout)}
+                            className="text-muted-foreground hover:text-foreground h-8 w-8 p-0"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -470,9 +491,109 @@ const Personal = () => {
       </div>
     </div>
 
-        </main>
-);
-
+    {/* Workout Details Popup */}
+      {showWorkoutPopup && popupWorkout && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 animate-fade-in">
+          <div className="glass rounded-3xl p-4 sm:p-6 max-w-lg mx-4 relative max-h-[85vh] overflow-y-auto border border-white/10 shadow-2xl" style={{minWidth: '320px'}}>
+            <button
+              onClick={handleCloseWorkoutPopup}
+              className="absolute top-6 right-6 text-muted-foreground/70 hover:text-foreground transition-all duration-200 hover:bg-white/[0.1] rounded-full p-2"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            
+            <div className="flex items-center gap-4 mb-8">
+              <div>
+                <h3 className="text-2xl font-light text-foreground mb-2">
+                  {popupWorkout.day}
+                </h3>
+                <p className="text-base text-muted-foreground">
+                  {popupWorkout.workout}
+                </p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 gap-6">
+              {popupWorkout.day === 'Monday' && (
+                <>
+                  <div className="glass rounded-2xl p-6 border border-white/5">
+                    <h4 className="text-lg font-medium text-foreground mb-4 flex items-center gap-2">
+                      Bench Press
+                    </h4>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-foreground font-medium">3 sets × 8–12 reps</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="glass rounded-2xl p-6 border border-white/5">
+                    <h4 className="text-lg font-medium text-foreground mb-4 flex items-center gap-2">
+                      <span className="w-2 h-2 bg-primary rounded-full"></span>
+                      Incline Dumbbell Press
+                    </h4>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-foreground font-medium">3 sets × 8–12 reps</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="glass rounded-2xl p-6 border border-white/5">
+                    <h4 className="text-lg font-medium text-foreground mb-4 flex items-center gap-2">
+                      <span className="w-2 h-2 bg-primary rounded-full"></span>
+                      Shoulder Press
+                    </h4>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-foreground font-medium">3 sets × 8–12 reps</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="glass rounded-2xl p-6 border border-white/5">
+                    <h4 className="text-lg font-medium text-foreground mb-4 flex items-center gap-2">
+                      <span className="w-2 h-2 bg-primary rounded-full"></span>
+                      Lateral Raises
+                    </h4>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-foreground font-medium">3 sets × 12–15 reps</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="glass rounded-2xl p-6 border border-white/5">
+                    <h4 className="text-lg font-medium text-foreground mb-4 flex items-center gap-2">
+                      <span className="w-2 h-2 bg-primary rounded-full"></span>
+                      Tricep Pushdowns
+                    </h4>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-foreground font-medium">3 sets × 10–15 reps</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="glass rounded-2xl p-6 border border-white/5">
+                    <h4 className="text-lg font-medium text-foreground mb-4 flex items-center gap-2">
+                      <span className="w-2 h-2 bg-primary rounded-full"></span>
+                      Push-Ups
+                    </h4>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-foreground font-medium">2 sets to failure</span>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </main>
+  );
 };
 
 export default Personal;
