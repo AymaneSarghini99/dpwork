@@ -569,7 +569,7 @@ const Personal = () => {
           {/* Meal Pool */}
           <div>
             <h2 className="text-xs tracking-[0.3em] text-muted-foreground uppercase mb-6 text-center">
-              All Meals — Click to select for today
+              All Meals
             </h2>
             <div className="grid grid-cols-1 gap-3">
               {MEAL_POOL.map((meal) => {
