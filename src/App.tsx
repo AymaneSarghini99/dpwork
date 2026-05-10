@@ -11,6 +11,7 @@ import SignUp from "./pages/SignUp.tsx";
 import ConfirmEmail from "./pages/ConfirmEmail.tsx";
 import AuthCallback from "./pages/AuthCallback.tsx";
 import Personal from "./pages/Personal.tsx";
+import Stats from "./pages/Stats.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -35,6 +36,11 @@ const App = () => (
             <Route path="/personal" element={
               <ProtectedRoute>
                 <Personal />
+              </ProtectedRoute>
+            } />
+            <Route path="/stats" element={
+              <ProtectedRoute>
+                <Stats />
               </ProtectedRoute>
             } />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

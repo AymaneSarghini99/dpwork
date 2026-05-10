@@ -510,6 +510,17 @@ const Index = () => {
             >
               View Calendar
             </button>
+
+            {/* Personal Button */}
+            <button
+              onClick={() => {
+                setMobileStatsOpen(false);
+                navigate('/personal');
+              }}
+              className="w-full rounded-lg border border-white/10 px-3 py-2 text-[10px] tracking-[0.3em] text-muted-foreground transition-colors hover:bg-white/[0.05] hover:text-foreground"
+            >
+              Personal
+            </button>
           </div>
         </DialogContent>
       </Dialog>

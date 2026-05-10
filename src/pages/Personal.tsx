@@ -561,54 +561,7 @@ const Personal = () => {
             </div>
           </div>
 
-          {/* Workout Calendar */}
-          <div className="w-full max-w-4xl animate-fade-in">
-            <div className="glass rounded-2xl p-6 md:p-8">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-light text-foreground flex items-center gap-2">
-                  <Calendar className="w-4 h-4" />
-                  Workout Tracker
-                </h3>
-                <div className="text-xs text-muted-foreground">
-                  {format(currentMonth, 'MMMM yyyy')}
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-7 gap-1 mb-2">
-                {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map(day => (
-                  <div key={day} className="text-center text-xs text-muted-foreground p-2">
-                    {day}
                   </div>
-                ))}
-              </div>
-              
-              <div className="grid grid-cols-7 gap-1">
-                {getCalendarDays().map((date, index) => {
-                  const isCompleted = isWorkoutCompleted(date);
-                  const isCurrentMonth = date.getMonth() === currentMonth.getMonth();
-                  const isTodayDate = isToday(date);
-                  
-                  return (
-                    <div
-                      key={index}
-                      className={`aspect-square flex items-center justify-center rounded-lg text-xs transition-all duration-300 cursor-pointer ${
-                        isCompleted 
-                          ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/50 shadow-[0_0_12px_rgba(16,185,129,0.15)]'
-                          : isTodayDate 
-                            ? 'bg-primary/20 text-primary border border-primary/30' 
-                            : isCurrentMonth 
-                              ? 'text-foreground hover:bg-white/[0.05]' 
-                              : 'text-muted-foreground/30'
-                      }`}
-                      onClick={() => handleCalendarClick(date)}
-                    >
-                      {format(date, 'd')}
-                    </div>
-                  );
-                })}
-            </div>
-          </div>
-        </div>
         </>
       )}
 
@@ -674,7 +627,7 @@ const Personal = () => {
         </div>
       )}
 
-    {/* Workout Details Popup */}
+      {/* Workout Details Popup */}
       {showWorkoutPopup && popupWorkout && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-50 animate-fade-in">
           <div className="glass rounded-3xl p-4 sm:p-6 max-w-lg mx-4 relative max-h-[85vh] overflow-y-auto border border-white/10 shadow-2xl" style={{width: '600px'}}>

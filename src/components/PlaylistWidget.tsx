@@ -256,7 +256,7 @@ export const PlaylistWidget = () => {
 
   return (
     <>
-      {currentVideo?.embedUrl ? (
+      {false && currentVideo?.embedUrl ? (
         <div
           ref={videoCardRef}
           className={`fixed z-40 overflow-hidden rounded-2xl glass border border-white/10 bg-black/75 backdrop-blur-2xl shadow-[0_0_60px_hsl(0_0%_0%_/_0.4)] ${
@@ -331,7 +331,7 @@ export const PlaylistWidget = () => {
 
       <div 
         ref={widgetRef}
-        className={`fixed bottom-6 left-[calc(4rem+100px)] md:left-[calc(6rem+120px)] z-30 animate-fade-in ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
+        className={`hidden fixed bottom-6 left-[calc(4rem+100px)] md:left-[calc(6rem+120px)] z-30 animate-fade-in ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}`}
         style={{
           transform: `translate(${position.x}px, ${position.y}px)`,
           transition: isDragging ? 'none' : 'transform 0.2s ease-out'
