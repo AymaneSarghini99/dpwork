@@ -85,6 +85,12 @@ const Personal = () => {
 
   // Meal system
   const [activeTab, setActiveTab] = useState<'workouts' | 'meals'>('workouts');
+  
+  // Drag and drop state
+  const [draggedDay, setDraggedDay] = useState<string | null>(null);
+  const [dragOverDay, setDragOverDay] = useState<string | null>(null);
+  const [draggedExerciseIndex, setDraggedExerciseIndex] = useState<number | null>(null);
+  const [dragOverExerciseIndex, setDragOverExerciseIndex] = useState<number | null>(null);
 
   const MEAL_POOL = [
     'Beef + Rice',
@@ -131,6 +137,85 @@ const Personal = () => {
       date: format(new Date(), 'yyyy-MM-dd'),
       meals: [],
     }));
+  };
+
+  // Drag and drop handlers
+  const handleDragStart = (day: string) => {
+    setDraggedDay(day);
+  };
+
+  const handleDragOver = (e: React.DragEvent, day: string) => {
+    e.preventDefault();
+    setDragOverDay(day);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverDay(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, targetDay: string) => {
+    e.preventDefault();
+    setDragOverDay(null);
+    
+    if (!draggedDay || draggedDay === targetDay) return;
+    
+    // Find the workout plans for both days
+    const draggedWorkout = workoutPlans.find(w => w.day === draggedDay);
+    const targetWorkout = workoutPlans.find(w => w.day === targetDay);
+    
+    if (!draggedWorkout || !targetWorkout) return;
+    
+    // Swap the workout assignments
+    setWorkoutPlans(prev => prev.map(workout => {
+      if (workout.id === draggedWorkout.id) {
+        return { ...workout, day: targetDay };
+      }
+      if (workout.id === targetWorkout.id) {
+        return { ...workout, day: draggedDay };
+      }
+      return workout;
+    }));
+    
+    setDraggedDay(null);
+    toast.success('Workouts reordered');
+  };
+
+  // Exercise drag and drop handlers
+  const handleExerciseDragStart = (index: number) => {
+    setDraggedExerciseIndex(index);
+  };
+
+  const handleExerciseDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    setDragOverExerciseIndex(index);
+  };
+
+  const handleExerciseDragLeave = () => {
+    setDragOverExerciseIndex(null);
+  };
+
+  const handleExerciseDrop = (e: React.DragEvent, targetIndex: number, day: string) => {
+    e.preventDefault();
+    setDragOverExerciseIndex(null);
+    
+    if (draggedExerciseIndex === null || draggedExerciseIndex === targetIndex) return;
+    
+    const exercises = [...(popupExercises[day] || [])];
+    const draggedExercise = exercises[draggedExerciseIndex];
+    
+    if (!draggedExercise) return;
+    
+    // Remove from old position and insert at new position
+    exercises.splice(draggedExerciseIndex, 1);
+    exercises.splice(targetIndex, 0, draggedExercise);
+    
+    setPopupExercises(prev => ({
+      ...prev,
+      [day]: exercises
+    }));
+    
+    setDraggedExerciseIndex(null);
+    toast.success('Exercise reordered');
   };
   
   const today = new Date();
@@ -501,11 +586,20 @@ const Personal = () => {
                       return (
                         <tr 
                           key={day} 
-                          className={`border-b border-white/5 transition-colors ${
+                          draggable
+                          onDragStart={() => handleDragStart(day)}
+                          onDragOver={(e) => handleDragOver(e, day)}
+                          onDragLeave={handleDragLeave}
+                          onDrop={(e) => handleDrop(e, day)}
+                          className={`border-b border-white/5 transition-colors cursor-move ${
                             isCurrentDay ? 'bg-white/[0.02]' : 'hover:bg-white/[0.01]'
+                          } ${
+                            dragOverDay === day ? 'bg-blue-500/10 border-blue-500/30' : ''
+                          } ${
+                            draggedDay === day ? 'opacity-50' : ''
                           }`}
                         >
-                          <td className={`p-4 text-sm font-medium ${isCurrentDay ? 'text-yellow-400' : 'text-muted-foreground'}`}>
+                          <td className={`p-4 text-sm font-medium select-none ${isCurrentDay ? 'text-yellow-400' : 'text-muted-foreground'}`}>
                             {day}
                           </td>
                           <td 
@@ -545,8 +639,12 @@ const Personal = () => {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => handleShowWorkoutPopup(workout)}
-                                className="text-muted-foreground hover:text-foreground h-8 w-8 p-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleShowWorkoutPopup(workout);
+                                }}
+                                className="text-muted-foreground hover:text-foreground h-8 w-8 p-0 cursor-pointer"
+                                type="button"
                               >
                                 <Eye className="w-4 h-4" />
                               </Button>
@@ -649,7 +747,19 @@ const Personal = () => {
             
             <div className="grid grid-cols-1 gap-6">
               {(popupExercises[popupWorkout.day] || []).map((exercise, index) => (
-                <div key={`${exercise.name}-${index}`} className="glass rounded-2xl p-6 border border-white/5 relative group">
+                <div 
+                  key={`${exercise.name}-${index}`} 
+                  draggable
+                  onDragStart={() => handleExerciseDragStart(index)}
+                  onDragOver={(e) => handleExerciseDragOver(e, index)}
+                  onDragLeave={handleExerciseDragLeave}
+                  onDrop={(e) => handleExerciseDrop(e, index, popupWorkout.day)}
+                  className={`glass rounded-2xl p-6 border border-white/5 relative group cursor-move ${
+                    dragOverExerciseIndex === index ? 'bg-blue-500/10 border-blue-500/30' : ''
+                  } ${
+                    draggedExerciseIndex === index ? 'opacity-50' : ''
+                  }`}
+                >
                   <button
                     onClick={() => handleRemovePopupExercise(popupWorkout.day, index)}
                     className="absolute top-4 right-4 text-muted-foreground/50 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
