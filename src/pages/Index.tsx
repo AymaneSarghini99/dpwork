@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Play, Pause, RotateCcw, LogOut, BarChart3 } from "lucide-react";
 import { FlipDigit } from "@/components/FlipDigit";
@@ -22,6 +22,53 @@ import { useSessions, formatDuration, formatHours } from "@/lib/sessions";
 import { toast } from "sonner";
 
 const DURATIONS = [25, 45, 60, 90, 120];
+const TIMER_STORAGE_KEY = "deepwork_timer_state";
+
+type TimerStorageState = {
+  duration?: unknown;
+  remaining?: unknown;
+  running?: unknown;
+  startedAt?: unknown;
+  elapsedAtPause?: unknown;
+  timestamp?: unknown;
+};
+
+const toFiniteNumber = (value: unknown): number | null => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return null;
+};
+
+const clearTimerStorage = () => {
+  try {
+    localStorage.removeItem(TIMER_STORAGE_KEY);
+  } catch (error) {
+    console.error("Error clearing timer state:", error);
+  }
+};
+
+const normalizeTimerState = (raw: TimerStorageState) => {
+  const duration = toFiniteNumber(raw.duration);
+  const remaining = toFiniteNumber(raw.remaining);
+  const elapsedAtPause = toFiniteNumber(raw.elapsedAtPause) ?? 0;
+  const startedAt = typeof raw.startedAt === "string" && raw.startedAt ? raw.startedAt : null;
+  const running = Boolean(raw.running);
+
+  if (duration === null || remaining === null) {
+    return null;
+  }
+
+  return {
+    duration,
+    remaining,
+    elapsedAtPause,
+    startedAt,
+    running,
+  };
+};
 
 const Index = () => {
   const { user } = useAuth();
@@ -39,16 +86,23 @@ const Index = () => {
   const elapsedAtPauseRef = useRef<number>(0); // accumulated focused seconds while paused
   const lastUpdateTimeRef = useRef<number>(0);
   const isMasterInstanceRef = useRef<boolean>(true); // Track if this is the master instance
+  const durationRef = useRef(duration);
+  
+  // Keep durationRef in sync with duration state
+  useEffect(() => {
+    durationRef.current = duration;
+  }, [duration]);
+  
   const { todaySec, weekSec, monthSec, byDay, addSession } = useSessions();
 
-  const completeSession = (focusedSec: number) => {
+  const completeSession = useCallback((focusedSec: number) => {
     setRunning(false);
     const startedAt = startedAtRef.current ?? new Date(Date.now() - focusedSec * 1000);
     addSession({
       started_at: startedAt.toISOString(),
       ended_at: new Date().toISOString(),
       duration_sec: focusedSec,
-      planned_min: duration,
+      planned_min: durationRef.current,
       user_id: user?.id || 'local'
     });
     startedAtRef.current = null;
@@ -59,112 +113,119 @@ const Index = () => {
     });
     
     // Clear timer state from localStorage when completed
-    try {
-      localStorage.removeItem('deepwork_timer_state');
-    } catch (error) {
-      console.error('Error clearing timer state:', error);
-    }
-  };
+    clearTimerStorage();
+  }, [addSession, user?.id]);
 
-  // Timer state persistence and cross-browser synchronization
+  // Load timer state once on mount.
   useEffect(() => {
-    const TIMER_STORAGE_KEY = 'deepwork_timer_state';
-    
-    // Load timer state from localStorage on mount
-    const loadTimerState = () => {
-      try {
-        const stored = localStorage.getItem(TIMER_STORAGE_KEY);
-        if (stored) {
-          const state = JSON.parse(stored);
-          const now = Date.now();
-          
-          // If timer was running, calculate elapsed time
-          if (state.running && state.startedAt) {
-            const elapsedSeconds = Math.floor((now - state.startedAt) / 1000);
-            const remaining = Math.max(0, state.duration * 60 - elapsedSeconds);
-            
-            setDuration(state.duration);
-            setRemaining(remaining);
-            startedAtRef.current = new Date(state.startedAt);
-            elapsedAtPauseRef.current = state.elapsedAtPause || 0;
-            
-            if (remaining > 0) {
-              setRunning(true);
-            } else {
-              // Timer completed while browser was closed
-              completeSession(state.duration * 60);
-            }
-          } else {
-            // Timer was paused or stopped
-            setDuration(state.duration);
-            setRemaining(state.remaining);
-            startedAtRef.current = state.startedAt ? new Date(state.startedAt) : null;
-            elapsedAtPauseRef.current = state.elapsedAtPause || 0;
-          }
+    try {
+      const stored = localStorage.getItem(TIMER_STORAGE_KEY);
+      if (!stored) return;
+
+      const parsed = JSON.parse(stored) as TimerStorageState;
+      const state = normalizeTimerState(parsed);
+      if (!state) {
+        clearTimerStorage();
+        return;
+      }
+      const now = Date.now();
+
+      if (state.running && state.startedAt) {
+        const startedAtMs = new Date(state.startedAt).getTime();
+        if (!Number.isFinite(startedAtMs)) {
+          clearTimerStorage();
+          return;
         }
-      } catch (error) {
-        console.error('Error loading timer state:', error);
-      }
-    };
 
-    // Save timer state to localStorage
-    const saveTimerState = () => {
-      try {
-        const state = {
-          duration,
-          remaining,
-          running,
-          startedAt: startedAtRef.current?.toISOString(),
-          elapsedAtPause: elapsedAtPauseRef.current,
-          timestamp: Date.now()
-        };
-        localStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify(state));
-      } catch (error) {
-        console.error('Error saving timer state:', error);
-      }
-    };
+        const elapsedSeconds = Math.floor((now - startedAtMs) / 1000);
+        const nextRemaining = Math.max(0, state.duration * 60 - elapsedSeconds);
 
-    // Listen for storage events from other browser instances
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === TIMER_STORAGE_KEY && e.newValue) {
-        try {
-          const state = JSON.parse(e.newValue);
-          const now = Date.now();
-          
-          // Update local state based on storage event
-          setDuration(state.duration);
-          setRemaining(state.remaining);
-          setRunning(state.running);
-          startedAtRef.current = state.startedAt ? new Date(state.startedAt) : null;
-          elapsedAtPauseRef.current = state.elapsedAtPause || 0;
-          
-          // If timer was running, recalculate remaining time
-          if (state.running && state.startedAt) {
-            const elapsedSeconds = Math.floor((now - state.startedAt) / 1000);
-            const calculatedRemaining = Math.max(0, state.duration * 60 - elapsedSeconds);
-            setRemaining(calculatedRemaining);
-            
-            if (calculatedRemaining === 0) {
-              completeSession(state.duration * 60);
-            }
-          }
-        } catch (error) {
-          console.error('Error handling storage change:', error);
+        setDuration(state.duration);
+        setRemaining(nextRemaining);
+        startedAtRef.current = new Date(startedAtMs);
+        elapsedAtPauseRef.current = state.elapsedAtPause;
+
+        if (nextRemaining > 0) {
+          setRunning(true);
+        } else {
+          completeSession(state.duration * 60);
         }
+      } else {
+        setDuration(state.duration);
+        setRemaining(state.remaining);
+        setRunning(state.running);
+        startedAtRef.current = state.startedAt ? new Date(state.startedAt) : null;
+        elapsedAtPauseRef.current = state.elapsedAtPause;
       }
-    };
+    } catch (error) {
+      console.error("Error loading timer state:", error);
+      clearTimerStorage();
+    }
+  }, [completeSession]);
 
-    loadTimerState();
-    window.addEventListener('storage', handleStorageChange);
-
-    // Save state whenever timer values change
-    const stateInterval = setInterval(saveTimerState, 1000);
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      clearInterval(stateInterval);
-    };
+  // Persist timer state whenever it changes.
+  useEffect(() => {
+    try {
+      const state = {
+        duration,
+        remaining,
+        running,
+        startedAt: startedAtRef.current?.toISOString(),
+        elapsedAtPause: elapsedAtPauseRef.current,
+        timestamp: Date.now(),
+      };
+      if (!Number.isFinite(state.duration) || !Number.isFinite(state.remaining)) {
+        return;
+      }
+      localStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify(state));
+    } catch (error) {
+      console.error("Error saving timer state:", error);
+    }
   }, [duration, remaining, running]);
+
+  // Listen for storage events from other browser instances.
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key !== TIMER_STORAGE_KEY || !e.newValue) return;
+
+      try {
+        const parsed = JSON.parse(e.newValue) as TimerStorageState;
+        const state = normalizeTimerState(parsed);
+        if (!state) {
+          clearTimerStorage();
+          return;
+        }
+        const now = Date.now();
+
+        setDuration(state.duration);
+        setRemaining(state.remaining);
+        setRunning(state.running);
+        startedAtRef.current = state.startedAt ? new Date(state.startedAt) : null;
+        elapsedAtPauseRef.current = state.elapsedAtPause;
+
+        if (state.running && state.startedAt) {
+          const startedAtMs = new Date(state.startedAt).getTime();
+          if (!Number.isFinite(startedAtMs)) {
+            clearTimerStorage();
+            return;
+          }
+
+          const elapsedSeconds = Math.floor((now - startedAtMs) / 1000);
+          const calculatedRemaining = Math.max(0, state.duration * 60 - elapsedSeconds);
+          setRemaining(calculatedRemaining);
+
+          if (calculatedRemaining === 0) {
+            completeSession(state.duration * 60);
+          }
+        }
+      } catch (error) {
+        console.error("Error handling storage change:", error);
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, [completeSession]);
 
   // Handle OAuth parameters if user lands directly on main page
   useEffect(() => {
@@ -203,7 +264,7 @@ const Index = () => {
         setRemaining((r) => {
           if (r <= secondsPassed) {
             // session complete
-            completeSession(duration * 60);
+            completeSession(durationRef.current * 60);
             return 0;
           }
           return r - secondsPassed;
@@ -254,6 +315,7 @@ const Index = () => {
     setDuration(m);
     setRemaining(m * 60);
     setRunning(false);
+    elapsedAtPauseRef.current = 0;
   };
 
   const reset = () => {
@@ -272,6 +334,7 @@ const Index = () => {
     }
     setRunning(false);
     setRemaining(duration * 60);
+    elapsedAtPauseRef.current = 0;
   };
 
   const openManual = () => {
