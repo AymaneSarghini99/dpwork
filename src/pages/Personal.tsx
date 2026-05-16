@@ -25,6 +25,74 @@ const DEFAULT_WORKOUTS = {
   'Sunday': 'Swimming'
 };
 
+type WorkoutExercise = { name: string; sets: string };
+
+const createDefaultPopupExercises = (): Record<string, WorkoutExercise[]> => ({
+  Monday: [
+    { name: 'Bench Press', sets: '4 sets × 6–10 reps' },
+    { name: 'Incline Dumbbell Press', sets: '3 sets × 8–12 reps' },
+    { name: 'Shoulder Press', sets: '3 sets × 8–12 reps' },
+    { name: 'Lateral Raises', sets: '3 sets × 12–15 reps' },
+    { name: 'Tricep Pushdowns', sets: '3 sets × 10–15 reps' },
+    { name: 'Push-Ups', sets: '2 sets to failure' },
+  ],
+  Tuesday: [
+    { name: 'Pull-Ups', sets: '3 sets × 6–10 reps' },
+    { name: 'Barbell Rows', sets: '4 sets × 6–10 reps' },
+    { name: 'Lat Pulldowns', sets: '3 sets × 10–12 reps' },
+    { name: 'Face Pulls', sets: '3 sets × 15–20 reps' },
+    { name: 'Bicep Curls', sets: '3 sets × 10–12 reps' },
+    { name: 'Hammer Curls', sets: '3 sets × 10–12 reps' },
+  ],
+  Wednesday: [
+    { name: 'Mid Run', sets: '4–8 km' },
+  ],
+  Thursday: [
+    { name: 'Squats', sets: '4 sets × 6–10 reps' },
+    { name: 'Romanian Deadlifts', sets: '3 sets × 8–12 reps' },
+    { name: 'Leg Press', sets: '3 sets × 10–15 reps' },
+    { name: 'Leg Curls', sets: '3 sets × 12–15 reps' },
+    { name: 'Calf Raises', sets: '3 sets × 15–20 reps' },
+    { name: 'Lunges', sets: '3 sets × 10 reps each leg' },
+  ],
+  Friday: [
+    { name: 'Overhead Press', sets: '4 sets × 6–10 reps' },
+    { name: 'Dumbbell Shoulder Press', sets: '3 sets × 8–12 reps' },
+    { name: 'Arnold Press', sets: '3 sets × 10–12 reps' },
+    { name: 'Lateral Raises', sets: '3 sets × 12–15 reps' },
+    { name: 'Front Raises', sets: '3 sets × 12–15 reps' },
+    { name: 'Rear Delt Flyes', sets: '3 sets × 15–20 reps' },
+  ],
+  Saturday: [
+    { name: 'Long Run', sets: '10–12 km' },
+  ],
+  Sunday: [
+    { name: 'Swimming', sets: '30–45 min' },
+  ],
+});
+
+const getPopupStorageKey = (userId: string) => `workout_exercises_${userId}`;
+const getWorkoutStorageKey = (userId: string) => `workout_plans_${userId}`;
+const getCompletionStorageKey = (userId: string) => `workout_completions_${userId}`;
+
+const isLocalDevHost = () =>
+  window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+const getPersistenceUserId = (userId: string | undefined) => {
+  if (userId) return userId;
+  return isLocalDevHost() ? 'local-dev' : null;
+};
+
+const buildDefaultWorkoutPlans = (userId: string): WorkoutPlan[] => (
+  DAYS_OF_WEEK.map(day => ({
+    id: `${userId}_${day}`,
+    day,
+    workout: DEFAULT_WORKOUTS[day as keyof typeof DEFAULT_WORKOUTS],
+    user_id: userId,
+    created_at: new Date().toISOString(),
+  }))
+);
+
 const Personal = () => {
   const { user } = useAuth();
   const [workoutPlans, setWorkoutPlans] = useState<WorkoutPlan[]>([]);
@@ -36,52 +104,10 @@ const Personal = () => {
   const [loading, setLoading] = useState(true);
   const [showWorkoutPopup, setShowWorkoutPopup] = useState(false);
   const [popupWorkout, setPopupWorkout] = useState<WorkoutPlan | null>(null);
-  const [editingPopupExercise, setEditingPopupExercise] = useState<string | null>(null);
+  const [editingPopupExercise, setEditingPopupExercise] = useState<{ day: string; index: number } | null>(null);
   const [editExerciseName, setEditExerciseName] = useState('');
   const [editExerciseSets, setEditExerciseSets] = useState('');
-  const [popupExercises, setPopupExercises] = useState<Record<string, { name: string; sets: string }[]>>({
-    Monday: [
-      { name: 'Bench Press', sets: '4 sets × 6–10 reps' },
-      { name: 'Incline Dumbbell Press', sets: '3 sets × 8–12 reps' },
-      { name: 'Shoulder Press', sets: '3 sets × 8–12 reps' },
-      { name: 'Lateral Raises', sets: '3 sets × 12–15 reps' },
-      { name: 'Tricep Pushdowns', sets: '3 sets × 10–15 reps' },
-      { name: 'Push-Ups', sets: '2 sets to failure' },
-    ],
-    Tuesday: [
-      { name: 'Pull-Ups', sets: '3 sets × 6–10 reps' },
-      { name: 'Barbell Rows', sets: '4 sets × 6–10 reps' },
-      { name: 'Lat Pulldowns', sets: '3 sets × 10–12 reps' },
-      { name: 'Face Pulls', sets: '3 sets × 15–20 reps' },
-      { name: 'Bicep Curls', sets: '3 sets × 10–12 reps' },
-      { name: 'Hammer Curls', sets: '3 sets × 10–12 reps' },
-    ],
-    Wednesday: [
-      { name: 'Mid Run', sets: '4–8 km' },
-    ],
-    Thursday: [
-      { name: 'Squats', sets: '4 sets × 6–10 reps' },
-      { name: 'Romanian Deadlifts', sets: '3 sets × 8–12 reps' },
-      { name: 'Leg Press', sets: '3 sets × 10–15 reps' },
-      { name: 'Leg Curls', sets: '3 sets × 12–15 reps' },
-      { name: 'Calf Raises', sets: '3 sets × 15–20 reps' },
-      { name: 'Lunges', sets: '3 sets × 10 reps each leg' },
-    ],
-    Friday: [
-      { name: 'Overhead Press', sets: '4 sets × 6–10 reps' },
-      { name: 'Dumbbell Shoulder Press', sets: '3 sets × 8–12 reps' },
-      { name: 'Arnold Press', sets: '3 sets × 10–12 reps' },
-      { name: 'Lateral Raises', sets: '3 sets × 12–15 reps' },
-      { name: 'Front Raises', sets: '3 sets × 12–15 reps' },
-      { name: 'Rear Delt Flyes', sets: '3 sets × 15–20 reps' },
-    ],
-    Saturday: [
-      { name: 'Long Run', sets: '10–12 km' },
-    ],
-    Sunday: [
-      { name: 'Swimming', sets: '30–45 min' },
-    ],
-  });
+  const [popupExercises, setPopupExercises] = useState<Record<string, WorkoutExercise[]>>(() => createDefaultPopupExercises());
 
   // Meal system
   const [activeTab, setActiveTab] = useState<'workouts' | 'meals'>('workouts');
@@ -230,8 +256,59 @@ const Personal = () => {
     loadData();
   }, [user]);
 
+  useEffect(() => {
+    const storageUserId = getPersistenceUserId(user?.id);
+    if (!storageUserId) return;
+
+    try {
+      const stored = localStorage.getItem(getPopupStorageKey(storageUserId));
+      if (!stored) {
+        setPopupExercises(createDefaultPopupExercises());
+        return;
+      }
+
+      const parsed = JSON.parse(stored) as Record<string, WorkoutExercise[]>;
+      setPopupExercises(parsed);
+    } catch (error) {
+      console.error('Error loading workout exercises from localStorage:', error);
+      setPopupExercises(createDefaultPopupExercises());
+    }
+  }, [user]);
+
+  useEffect(() => {
+    const storageUserId = getPersistenceUserId(user?.id);
+    if (!storageUserId) return;
+
+    try {
+      localStorage.setItem(getPopupStorageKey(storageUserId), JSON.stringify(popupExercises));
+    } catch (error) {
+      console.error('Error saving workout exercises to localStorage:', error);
+    }
+  }, [popupExercises, user]);
+
   const loadData = async () => {
-    if (!user) return;
+    const storageUserId = getPersistenceUserId(user?.id);
+    if (!storageUserId) {
+      setLoading(false);
+      return;
+    }
+
+    if (!user && isLocalDevHost()) {
+      try {
+        const storedPlans = localStorage.getItem(getWorkoutStorageKey(storageUserId));
+        const storedCompletions = localStorage.getItem(getCompletionStorageKey(storageUserId));
+
+        setWorkoutPlans(storedPlans ? JSON.parse(storedPlans) : buildDefaultWorkoutPlans(storageUserId));
+        setCompletions(storedCompletions ? JSON.parse(storedCompletions) : []);
+      } catch (error) {
+        console.error('Error loading local dev workout data:', error);
+        setWorkoutPlans(buildDefaultWorkoutPlans(storageUserId));
+        setCompletions([]);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
     
     try {
       // Try to load from Supabase first
@@ -265,22 +342,16 @@ const Personal = () => {
       
       // Fallback to localStorage if Supabase fails
       try {
-        const storedPlans = localStorage.getItem(`workout_plans_${user.id}`);
-        const storedCompletions = localStorage.getItem(`workout_completions_${user.id}`);
+        const storedPlans = localStorage.getItem(getWorkoutStorageKey(storageUserId));
+        const storedCompletions = localStorage.getItem(getCompletionStorageKey(storageUserId));
         
         if (storedPlans) {
           setWorkoutPlans(JSON.parse(storedPlans));
         } else {
           // Create default plans and store them
-          const defaultPlans = DAYS_OF_WEEK.map(day => ({
-            id: `${user.id}_${day}`,
-            day,
-            workout: DEFAULT_WORKOUTS[day as keyof typeof DEFAULT_WORKOUTS],
-            user_id: user.id,
-            created_at: new Date().toISOString()
-          }));
+          const defaultPlans = buildDefaultWorkoutPlans(storageUserId);
           setWorkoutPlans(defaultPlans);
-          localStorage.setItem(`workout_plans_${user.id}`, JSON.stringify(defaultPlans));
+          localStorage.setItem(getWorkoutStorageKey(storageUserId), JSON.stringify(defaultPlans));
         }
         
         if (storedCompletions) {
@@ -300,22 +371,31 @@ const Personal = () => {
   };
 
   const createDefaultWorkoutPlans = async () => {
-    if (!user) return;
+    const storageUserId = getPersistenceUserId(user?.id);
+    if (!storageUserId) return;
+
+    const defaultPlans = buildDefaultWorkoutPlans(storageUserId);
+    setWorkoutPlans(defaultPlans);
+    try {
+      localStorage.setItem(getWorkoutStorageKey(storageUserId), JSON.stringify(defaultPlans));
+    } catch (storageError) {
+      console.error('Error saving default workout plans to localStorage:', storageError);
+    }
+
+    if (!user) {
+      return;
+    }
 
     try {
-      const defaultPlans = DAYS_OF_WEEK.map(day => ({
-        day,
-        workout: DEFAULT_WORKOUTS[day as keyof typeof DEFAULT_WORKOUTS],
-        user_id: user.id
-      }));
-
       const { data, error } = await (supabase
         .from('workout_plans' as any)
         .insert(defaultPlans as any)
         .select());
 
       if (error) throw error;
-      setWorkoutPlans(data || []);
+      if (data && data.length > 0) {
+        setWorkoutPlans(data);
+      }
     } catch (error) {
       console.error('Error creating default workout plans:', error);
       toast.error('Failed to create workout plans');
@@ -339,13 +419,32 @@ const Personal = () => {
     setEditingPopupExercise(null);
   };
 
-  const handleEditPopupExercise = (exerciseName: string, sets: string) => {
-    setEditingPopupExercise(exerciseName);
-    setEditExerciseName(exerciseName);
-    setEditExerciseSets(sets);
+  const handleEditPopupExercise = (day: string, index: number, exercise: WorkoutExercise) => {
+    setEditingPopupExercise({ day, index });
+    setEditExerciseName(exercise.name);
+    setEditExerciseSets(exercise.sets);
   };
 
   const handleSavePopupExercise = () => {
+    if (!editingPopupExercise) return;
+
+    setPopupExercises(prev => {
+      const exercises = [...(prev[editingPopupExercise.day] || [])];
+      const current = exercises[editingPopupExercise.index];
+
+      if (!current) return prev;
+
+      exercises[editingPopupExercise.index] = {
+        name: editExerciseName.trim() || current.name,
+        sets: editExerciseSets.trim() || current.sets,
+      };
+
+      return {
+        ...prev,
+        [editingPopupExercise.day]: exercises,
+      };
+    });
+
     setEditingPopupExercise(null);
     toast.success('Exercise updated');
   };
@@ -366,7 +465,8 @@ const Personal = () => {
   };
 
   const handleSaveEdit = async () => {
-    if (!editingWorkout || !user) return;
+    const storageUserId = getPersistenceUserId(user?.id);
+    if (!editingWorkout || !storageUserId) return;
 
     try {
       const updateData = { 
@@ -374,13 +474,22 @@ const Personal = () => {
         workout: editWorkout 
       };
 
-      const { error } = await (supabase as any)
-        .from('workout_plans')
-        .update(updateData)
-        .eq('id', editingWorkout.id)
-        .eq('user_id', user.id);
+      if (user) {
+        const { error } = await (supabase as any)
+          .from('workout_plans')
+          .update(updateData)
+          .eq('id', editingWorkout.id)
+          .eq('user_id', user.id);
 
-      if (error) throw error;
+        if (error) throw error;
+      } else {
+        const nextPlans = workoutPlans.map(w => w.id === editingWorkout.id
+          ? { ...w, day: editDay, workout: editWorkout }
+          : w
+        );
+        setWorkoutPlans(nextPlans);
+        localStorage.setItem(getWorkoutStorageKey(storageUserId), JSON.stringify(nextPlans));
+      }
 
       setWorkoutPlans(prev => 
         prev.map(w => w.id === editingWorkout.id 
@@ -398,7 +507,8 @@ const Personal = () => {
   };
 
   const handleCompleteWorkout = async () => {
-    if (!todayWorkout || !user) return;
+    const storageUserId = getPersistenceUserId(user?.id);
+    if (!todayWorkout || !storageUserId) return;
 
     try {
       const todayStr = format(today, 'yyyy-MM-dd');
@@ -410,6 +520,23 @@ const Personal = () => {
       
       if (alreadyCompleted) {
         toast.info('Workout already completed today');
+        return;
+      }
+
+      if (!user) {
+        const updatedCompletions = [
+          ...completions,
+          {
+            id: Date.now().toString(),
+            date: todayStr,
+            workout_id: todayWorkout.id,
+            user_id: storageUserId,
+            completed_at: new Date().toISOString()
+          }
+        ];
+        setCompletions(updatedCompletions);
+        localStorage.setItem(getCompletionStorageKey(storageUserId), JSON.stringify(updatedCompletions));
+        toast.success('Workout completed!');
         return;
       }
 
@@ -456,13 +583,25 @@ const Personal = () => {
   };
 
   const handleCalendarClick = async (date: Date) => {
-    if (!user || !todayWorkout) return;
+    const storageUserId = getPersistenceUserId(user?.id);
+    if (!storageUserId) return;
+
+    const workoutForDate = workoutPlans.find(w => w.day === format(date, 'EEEE'));
+    if (!workoutForDate) return;
     
     const isCompleted = isWorkoutCompleted(date);
     const dateStr = format(date, 'yyyy-MM-dd');
     
     try {
       if (isCompleted) {
+        if (!user) {
+          const updated = completions.filter(c => !isSameDay(new Date(c.date), date));
+          setCompletions(updated);
+          localStorage.setItem(getCompletionStorageKey(storageUserId), JSON.stringify(updated));
+          toast.success('Workout unmarked');
+          return;
+        }
+
         // Remove completion
         const { error } = await (supabase as any)
           .from('workout_completions')
@@ -475,10 +614,27 @@ const Personal = () => {
         setCompletions(prev => prev.filter(c => !isSameDay(new Date(c.date), date)));
         toast.success('Workout unmarked');
       } else {
+        if (!user) {
+          const updated = [
+            ...completions,
+            {
+              id: Date.now().toString(),
+              date: dateStr,
+              workout_id: workoutForDate.id,
+              user_id: storageUserId,
+              completed_at: new Date().toISOString()
+            }
+          ];
+          setCompletions(updated);
+          localStorage.setItem(getCompletionStorageKey(storageUserId), JSON.stringify(updated));
+          toast.success('Workout completed!');
+          return;
+        }
+
         // Add completion
         const completionData = {
           date: dateStr,
-          workout_id: todayWorkout.id,
+          workout_id: workoutForDate.id,
           user_id: user.id
         };
 
@@ -658,6 +814,80 @@ const Personal = () => {
               </div>
             </div>
           </div>
+
+          {/* Calendar */}
+          <div className="w-full max-w-4xl mb-12 animate-fade-in">
+            <div className="glass rounded-2xl p-5 md:p-6 border border-white/10">
+              <div className="flex items-center justify-between gap-4 mb-5">
+                <div className="flex items-center gap-3">
+                  <Calendar className="w-4 h-4 text-muted-foreground" />
+                  <h2 className="text-xs tracking-[0.3em] text-muted-foreground uppercase">
+                    Workout Calendar
+                  </h2>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))}
+                    className="w-8 h-8 rounded-full border border-white/10 text-muted-foreground hover:text-foreground hover:bg-white/[0.05] transition-colors"
+                    type="button"
+                  >
+                    ‹
+                  </button>
+                  <div className="min-w-[160px] text-center text-sm text-foreground/90">
+                    {format(currentMonth, 'MMMM yyyy')}
+                  </div>
+                  <button
+                    onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))}
+                    className="w-8 h-8 rounded-full border border-white/10 text-muted-foreground hover:text-foreground hover:bg-white/[0.05] transition-colors"
+                    type="button"
+                  >
+                    ›
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-7 gap-2 mb-2">
+                {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day) => (
+                  <div key={day} className="text-[10px] tracking-[0.2em] text-muted-foreground text-center py-2">
+                    {day}
+                  </div>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-7 gap-2">
+                {getCalendarDays().map((date, index) => {
+                  const isCurrentMonth = date.getMonth() === currentMonth.getMonth();
+                  const isSelected = isWorkoutCompleted(date);
+                  const isTodayDate = isToday(date);
+                  const workoutForDate = workoutPlans.find(w => w.day === format(date, 'EEEE'));
+
+                  return (
+                    <button
+                      key={`${date.toISOString()}-${index}`}
+                      type="button"
+                      onClick={() => handleCalendarClick(date)}
+                      className={`aspect-square rounded-xl border text-left p-2 transition-all ${
+                        isCurrentMonth ? 'opacity-100' : 'opacity-30'
+                      } ${
+                        isSelected
+                          ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
+                          : 'bg-white/[0.02] border-white/5 text-foreground hover:bg-white/[0.05]'
+                      } ${
+                        isTodayDate ? 'ring-1 ring-white/30' : ''
+                      }`}
+                    >
+                      <div className="flex h-full flex-col justify-between">
+                        <span className="text-xs font-medium">{date.getDate()}</span>
+                        <span className="text-[9px] leading-tight text-muted-foreground">
+                          {workoutForDate?.workout || 'Rest'}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         </>
       )}
 
@@ -766,7 +996,7 @@ const Personal = () => {
                   >
                     <X className="w-4 h-4" />
                   </button>
-                  {editingPopupExercise === `${exercise.name}-${index}` ? (
+                  {editingPopupExercise?.day === popupWorkout.day && editingPopupExercise.index === index ? (
                     <div className="space-y-3">
                       <input
                         value={editExerciseName}
@@ -790,7 +1020,7 @@ const Personal = () => {
                     <>
                       <h4
                         className="text-lg font-medium text-foreground mb-4 cursor-pointer hover:text-primary transition-colors pr-6"
-                        onClick={() => handleEditPopupExercise(`${exercise.name}-${index}`, exercise.sets)}
+                        onClick={() => handleEditPopupExercise(popupWorkout.day, index, exercise)}
                       >
                         {exercise.name}
                       </h4>
@@ -798,7 +1028,7 @@ const Personal = () => {
                         <div className="flex justify-between items-center">
                           <span
                             className="text-foreground font-medium cursor-pointer hover:text-primary transition-colors"
-                            onClick={() => handleEditPopupExercise(`${exercise.name}-${index}`, exercise.sets)}
+                            onClick={() => handleEditPopupExercise(popupWorkout.day, index, exercise)}
                           >
                             {exercise.sets}
                           </span>
