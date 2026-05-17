@@ -58,6 +58,29 @@ export interface Database {
           completed_at?: string
         }
       }
+      smoking_days: {
+        Row: {
+          id: string
+          date: string
+          count: number
+          user_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          date: string
+          count?: number
+          user_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          date?: string
+          count?: number
+          user_id?: string
+          created_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never

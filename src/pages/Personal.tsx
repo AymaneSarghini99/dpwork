@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { format, startOfWeek, addDays, isToday, isSameDay } from "date-fns";
+import { useEffect, useMemo, useState } from "react";
+import { format, startOfWeek, startOfMonth, endOfMonth, addDays, subDays, isToday, isSameDay } from "date-fns";
 import { Check, Edit2, Plus, X, Calendar, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import type { Database, TablesInsert, TablesUpdate } from "@/integrations/supaba
 
 type WorkoutPlan = Database['public']['Tables']['workout_plans']['Row'];
 type WorkoutCompletion = Database['public']['Tables']['workout_completions']['Row'];
+type SmokingDay = Database['public']['Tables']['smoking_days']['Row'];
 
 const DAYS_OF_WEEK = [
   'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
@@ -74,6 +75,7 @@ const createDefaultPopupExercises = (): Record<string, WorkoutExercise[]> => ({
 const getPopupStorageKey = (userId: string) => `workout_exercises_${userId}`;
 const getWorkoutStorageKey = (userId: string) => `workout_plans_${userId}`;
 const getCompletionStorageKey = (userId: string) => `workout_completions_${userId}`;
+const getSmokingStorageKey = (userId: string) => `smoking_days_${userId}`;
 
 const isLocalDevHost = () =>
   window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
@@ -93,6 +95,43 @@ const buildDefaultWorkoutPlans = (userId: string): WorkoutPlan[] => (
   }))
 );
 
+const isSmokeFreeMarked = (days: SmokingDay[], date: Date) =>
+  days.some((d) => isSameDay(new Date(d.date), date));
+
+/** Consecutive smoke-free days ending on this date (1, 2, 3, …) */
+const getSmokeFreeStreak = (days: SmokingDay[], date: Date): number => {
+  if (!isSmokeFreeMarked(days, date)) return 0;
+  let streak = 0;
+  let cursor = date;
+  while (isSmokeFreeMarked(days, cursor)) {
+    streak += 1;
+    cursor = subDays(cursor, 1);
+  }
+  return streak;
+};
+
+const getActiveStreak = (days: SmokingDay[]) => {
+  const today = new Date();
+  if (isSmokeFreeMarked(days, today)) return getSmokeFreeStreak(days, today);
+  return getSmokeFreeStreak(days, subDays(today, 1));
+};
+
+const getLongestStreak = (days: SmokingDay[]) => {
+  if (days.length === 0) return 0;
+  const sorted = [...days].sort((a, b) => a.date.localeCompare(b.date));
+  let max = 0;
+  let run = 0;
+  let prev: Date | null = null;
+  for (const { date } of sorted) {
+    const d = new Date(date);
+    if (prev && isSameDay(addDays(prev, 1), d)) run += 1;
+    else run = 1;
+    max = Math.max(max, run);
+    prev = d;
+  }
+  return max;
+};
+
 const Personal = () => {
   const { user } = useAuth();
   const [workoutPlans, setWorkoutPlans] = useState<WorkoutPlan[]>([]);
@@ -101,6 +140,8 @@ const Personal = () => {
   const [editDay, setEditDay] = useState('');
   const [editWorkout, setEditWorkout] = useState('');
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [smokingMonth, setSmokingMonth] = useState(new Date());
+  const [smokingDays, setSmokingDays] = useState<SmokingDay[]>([]);
   const [loading, setLoading] = useState(true);
   const [showWorkoutPopup, setShowWorkoutPopup] = useState(false);
   const [popupWorkout, setPopupWorkout] = useState<WorkoutPlan | null>(null);
@@ -110,7 +151,7 @@ const Personal = () => {
   const [popupExercises, setPopupExercises] = useState<Record<string, WorkoutExercise[]>>(() => createDefaultPopupExercises());
 
   // Meal system
-  const [activeTab, setActiveTab] = useState<'workouts' | 'meals'>('workouts');
+  const [activeTab, setActiveTab] = useState<'workouts' | 'meals' | 'smoking'>('workouts');
   
   // Drag and drop state
   const [draggedDay, setDraggedDay] = useState<string | null>(null);
@@ -254,6 +295,7 @@ const Personal = () => {
   // Load workout plans and completions
   useEffect(() => {
     loadData();
+    loadSmokingDays();
   }, [user]);
 
   useEffect(() => {
@@ -298,12 +340,16 @@ const Personal = () => {
         const storedPlans = localStorage.getItem(getWorkoutStorageKey(storageUserId));
         const storedCompletions = localStorage.getItem(getCompletionStorageKey(storageUserId));
 
+        const storedSmoking = localStorage.getItem(getSmokingStorageKey(storageUserId));
+
         setWorkoutPlans(storedPlans ? JSON.parse(storedPlans) : buildDefaultWorkoutPlans(storageUserId));
         setCompletions(storedCompletions ? JSON.parse(storedCompletions) : []);
+        setSmokingDays(storedSmoking ? JSON.parse(storedSmoking) : []);
       } catch (error) {
         console.error('Error loading local dev workout data:', error);
         setWorkoutPlans(buildDefaultWorkoutPlans(storageUserId));
         setCompletions([]);
+        setSmokingDays([]);
       } finally {
         setLoading(false);
       }
@@ -367,6 +413,136 @@ const Personal = () => {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadSmokingDays = async () => {
+    const storageUserId = getPersistenceUserId(user?.id);
+    if (!storageUserId) return;
+
+    if (!user && isLocalDevHost()) {
+      try {
+        const stored = localStorage.getItem(getSmokingStorageKey(storageUserId));
+        setSmokingDays(stored ? JSON.parse(stored) : []);
+      } catch (error) {
+        console.error('Error loading local smoking days:', error);
+        setSmokingDays([]);
+      }
+      return;
+    }
+
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('smoking_days')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('date', { ascending: true });
+
+      if (error) throw error;
+      setSmokingDays(data || []);
+    } catch (error) {
+      console.error('Error loading smoking days:', error);
+      try {
+        const stored = localStorage.getItem(getSmokingStorageKey(storageUserId));
+        setSmokingDays(stored ? JSON.parse(stored) : []);
+      } catch {
+        setSmokingDays([]);
+      }
+    }
+  };
+
+  const getSmokingCalendarDays = () => {
+    const start = startOfWeek(smokingMonth, { weekStartsOn: 1 });
+    return Array.from({ length: 42 }, (_, i) => addDays(start, i));
+  };
+
+  const getSmokingDayEntry = (date: Date) =>
+    smokingDays.find((d) => isSameDay(new Date(d.date), date));
+
+  const smokingStats = useMemo(() => {
+    const today = new Date();
+    const monthStart = startOfMonth(smokingMonth);
+    const monthEnd = endOfMonth(smokingMonth);
+
+    const monthDays = smokingDays.filter((d) => {
+      const date = new Date(d.date);
+      return date >= monthStart && date <= monthEnd;
+    });
+
+    return {
+      currentStreak: getActiveStreak(smokingDays),
+      longestStreak: getLongestStreak(smokingDays),
+      monthDays: monthDays.length,
+      totalDays: smokingDays.length,
+      todayStreak: getSmokeFreeStreak(smokingDays, today),
+      monthLabel: format(smokingMonth, 'MMMM'),
+    };
+  }, [smokingDays, smokingMonth]);
+
+  const persistSmokingDays = (storageUserId: string, updated: SmokingDay[]) => {
+    setSmokingDays(updated);
+    localStorage.setItem(getSmokingStorageKey(storageUserId), JSON.stringify(updated));
+  };
+
+  const handleSmokingCalendarClick = async (date: Date) => {
+    const storageUserId = getPersistenceUserId(user?.id);
+    if (!storageUserId) return;
+
+    const existing = getSmokingDayEntry(date);
+    const dateStr = format(date, 'yyyy-MM-dd');
+
+    try {
+      if (existing) {
+        if (!user) {
+          const updated = smokingDays.filter((d) => !isSameDay(new Date(d.date), date));
+          persistSmokingDays(storageUserId, updated);
+          toast.success('Day unmarked');
+          return;
+        }
+
+        const { error } = await supabase
+          .from('smoking_days')
+          .delete()
+          .eq('date', dateStr)
+          .eq('user_id', user.id);
+
+        if (error) throw error;
+
+        setSmokingDays((prev) => prev.filter((d) => !isSameDay(new Date(d.date), date)));
+        toast.success('Day unmarked');
+      } else {
+        const newEntry: SmokingDay = {
+          id: Date.now().toString(),
+          date: dateStr,
+          count: 1,
+          user_id: storageUserId,
+          created_at: new Date().toISOString(),
+        };
+
+        if (!user) {
+          persistSmokingDays(storageUserId, [...smokingDays, newEntry]);
+          const streak = getSmokeFreeStreak([...smokingDays, newEntry], date);
+          toast.success(`Day ${streak} smoke-free`);
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from('smoking_days')
+          .insert({ date: dateStr, user_id: user.id })
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        const next = [...smokingDays, data];
+        setSmokingDays(next);
+        toast.success(`Day ${getSmokeFreeStreak(next, date)} smoke-free`);
+      }
+    } catch (error) {
+      console.error('Error updating smoking day:', error);
+      toast.error('Failed to update day');
     }
   };
 
@@ -698,6 +874,17 @@ const Personal = () => {
         >
           Meals
         </button>
+        <span className="text-muted-foreground/30">·</span>
+        <button
+          onClick={() => setActiveTab('smoking')}
+          className={`text-sm tracking-[0.2em] transition-colors ${
+            activeTab === 'smoking'
+              ? 'text-foreground'
+              : 'text-muted-foreground hover:text-foreground/70'
+          }`}
+        >
+          Smoking
+        </button>
       </div>
 
       {/* Workouts Tab */}
@@ -950,6 +1137,117 @@ const Personal = () => {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Smoking Tab */}
+      {activeTab === 'smoking' && (
+        <div className="w-full max-w-4xl animate-fade-in space-y-8">
+          <h2 className="text-2xl md:text-3xl font-light text-foreground text-center tracking-wide">
+            Smoke-free
+          </h2>
+          <p className="text-center text-sm text-muted-foreground -mt-4">
+            Mark each day you did not smoke
+          </p>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label: 'Current streak', value: smokingStats.currentStreak },
+              { label: 'Best streak', value: smokingStats.longestStreak },
+              { label: smokingStats.monthLabel, value: smokingStats.monthDays },
+              { label: 'Total days', value: smokingStats.totalDays },
+            ].map((stat) => (
+              <div
+                key={stat.label}
+                className="glass rounded-xl p-4 border border-white/10 text-center"
+              >
+                <p className="text-[10px] tracking-[0.2em] text-muted-foreground uppercase mb-1">
+                  {stat.label}
+                </p>
+                <p className="text-2xl font-medium text-foreground tabular-nums">{stat.value}</p>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-center text-[10px] tracking-[0.15em] text-muted-foreground/70">
+            Click to mark smoke-free · Click again to unmark
+          </p>
+
+          <div className="glass rounded-2xl p-5 md:p-6 border border-white/10">
+            <div className="flex items-center justify-between gap-4 mb-5">
+              <div className="flex items-center gap-3">
+                <Calendar className="w-4 h-4 text-muted-foreground" />
+                <h3 className="text-xs tracking-[0.3em] text-muted-foreground uppercase">Calendar</h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() =>
+                    setSmokingMonth(new Date(smokingMonth.getFullYear(), smokingMonth.getMonth() - 1, 1))
+                  }
+                  className="w-8 h-8 rounded-full border border-white/10 text-muted-foreground hover:text-foreground hover:bg-white/[0.05] transition-colors"
+                  type="button"
+                >
+                  ‹
+                </button>
+                <div className="min-w-[160px] text-center text-sm text-foreground/90">
+                  {format(smokingMonth, 'MMMM yyyy')}
+                </div>
+                <button
+                  onClick={() =>
+                    setSmokingMonth(new Date(smokingMonth.getFullYear(), smokingMonth.getMonth() + 1, 1))
+                  }
+                  className="w-8 h-8 rounded-full border border-white/10 text-muted-foreground hover:text-foreground hover:bg-white/[0.05] transition-colors"
+                  type="button"
+                >
+                  ›
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-7 gap-2 mb-2">
+              {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, i) => (
+                <div
+                  key={`smoking-${day}-${i}`}
+                  className="text-[10px] tracking-[0.2em] text-muted-foreground text-center py-2"
+                >
+                  {day}
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-7 gap-2">
+              {getSmokingCalendarDays().map((date, index) => {
+                const isCurrentMonth = date.getMonth() === smokingMonth.getMonth();
+                const streak = getSmokeFreeStreak(smokingDays, date);
+                const isMarked = streak > 0;
+                const isTodayDate = isToday(date);
+
+                return (
+                  <button
+                    key={`smoking-${date.toISOString()}-${index}`}
+                    type="button"
+                    onClick={() => handleSmokingCalendarClick(date)}
+                    className={`aspect-square rounded-xl border text-left p-2 transition-all ${
+                      isCurrentMonth ? 'opacity-100' : 'opacity-30'
+                    } ${
+                      isMarked
+                        ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
+                        : 'bg-white/[0.02] border-white/5 text-foreground hover:bg-white/[0.05]'
+                    } ${isTodayDate ? 'ring-1 ring-white/30' : ''}`}
+                  >
+                    <div className="flex h-full flex-col justify-between">
+                      <span className="text-xs font-medium">{date.getDate()}</span>
+                      {isMarked && (
+                        <span className="text-lg font-semibold tabular-nums leading-none">
+                          {streak}
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
 
