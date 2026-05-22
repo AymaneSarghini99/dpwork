@@ -1,4 +1,4 @@
--- Track smoking count per day (click calendar to increment)
+-- Track smoking count perc day (click calendar to increment)
 CREATE TABLE IF NOT EXISTS smoking_days (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   date DATE NOT NULL,
