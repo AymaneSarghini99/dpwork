@@ -16,61 +16,9 @@ const DAYS_OF_WEEK = [
   'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'
 ];
 
-const DEFAULT_WORKOUTS = {
-  'Monday': 'PUSH',
-  'Tuesday': 'PULL',
-  'Wednesday': 'Mid Run 4-8 km',
-  'Thursday': 'LEGS',
-  'Friday': 'Shoulders',
-  'Saturday': 'Long run (10-12k)',
-  'Sunday': 'Swimming'
-};
+type WorkoutExercise = { id?: string; name: string; sets: string };
 
-type WorkoutExercise = { name: string; sets: string };
-
-const createDefaultPopupExercises = (): Record<string, WorkoutExercise[]> => ({
-  Monday: [
-    { name: 'Bench Press', sets: '4 sets × 6–10 reps' },
-    { name: 'Incline Dumbbell Press', sets: '3 sets × 8–12 reps' },
-    { name: 'Shoulder Press', sets: '3 sets × 8–12 reps' },
-    { name: 'Lateral Raises', sets: '3 sets × 12–15 reps' },
-    { name: 'Tricep Pushdowns', sets: '3 sets × 10–15 reps' },
-    { name: 'Push-Ups', sets: '2 sets to failure' },
-  ],
-  Tuesday: [
-    { name: 'Pull-Ups', sets: '3 sets × 6–10 reps' },
-    { name: 'Barbell Rows', sets: '4 sets × 6–10 reps' },
-    { name: 'Lat Pulldowns', sets: '3 sets × 10–12 reps' },
-    { name: 'Face Pulls', sets: '3 sets × 15–20 reps' },
-    { name: 'Bicep Curls', sets: '3 sets × 10–12 reps' },
-    { name: 'Hammer Curls', sets: '3 sets × 10–12 reps' },
-  ],
-  Wednesday: [
-    { name: 'Mid Run', sets: '4–8 km' },
-  ],
-  Thursday: [
-    { name: 'Squats', sets: '4 sets × 6–10 reps' },
-    { name: 'Romanian Deadlifts', sets: '3 sets × 8–12 reps' },
-    { name: 'Leg Press', sets: '3 sets × 10–15 reps' },
-    { name: 'Leg Curls', sets: '3 sets × 12–15 reps' },
-    { name: 'Calf Raises', sets: '3 sets × 15–20 reps' },
-    { name: 'Lunges', sets: '3 sets × 10 reps each leg' },
-  ],
-  Friday: [
-    { name: 'Overhead Press', sets: '4 sets × 6–10 reps' },
-    { name: 'Dumbbell Shoulder Press', sets: '3 sets × 8–12 reps' },
-    { name: 'Arnold Press', sets: '3 sets × 10–12 reps' },
-    { name: 'Lateral Raises', sets: '3 sets × 12–15 reps' },
-    { name: 'Front Raises', sets: '3 sets × 12–15 reps' },
-    { name: 'Rear Delt Flyes', sets: '3 sets × 15–20 reps' },
-  ],
-  Saturday: [
-    { name: 'Long Run', sets: '10–12 km' },
-  ],
-  Sunday: [
-    { name: 'Swimming', sets: '30–45 min' },
-  ],
-});
+const createEmptyPopupExercises = (): Record<string, WorkoutExercise[]> => ({});
 
 const getPopupStorageKey = (userId: string) => `workout_exercises_${userId}`;
 const getWorkoutStorageKey = (userId: string) => `workout_plans_${userId}`;
@@ -85,15 +33,38 @@ const getPersistenceUserId = (userId: string | undefined) => {
   return isLocalDevHost() ? 'local-dev' : null;
 };
 
-const buildDefaultWorkoutPlans = (userId: string): WorkoutPlan[] => (
-  DAYS_OF_WEEK.map(day => ({
-    id: `${userId}_${day}`,
-    day,
-    workout: DEFAULT_WORKOUTS[day as keyof typeof DEFAULT_WORKOUTS],
-    user_id: userId,
-    created_at: new Date().toISOString(),
-  }))
-);
+const isUuid = (id: string) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
+const dedupePlansByDay = (plans: WorkoutPlan[]): WorkoutPlan[] => {
+  const byDay = new Map<string, WorkoutPlan>();
+  for (const plan of plans) {
+    const existing = byDay.get(plan.day);
+    if (
+      !existing ||
+      (plan.created_at &&
+        existing.created_at &&
+        plan.created_at > existing.created_at)
+    ) {
+      byDay.set(plan.day, plan);
+    }
+  }
+  return DAYS_OF_WEEK.map((day) => byDay.get(day)).filter((p): p is WorkoutPlan => !!p);
+};
+
+const plansMatch = (a: WorkoutPlan[], b: WorkoutPlan[]) =>
+  DAYS_OF_WEEK.every((day) => {
+    const pa = a.find((p) => p.day === day)?.workout;
+    const pb = b.find((p) => p.day === day)?.workout;
+    return pa === pb;
+  });
+
+const getErrorMessage = (error: unknown) => {
+  if (error && typeof error === 'object' && 'message' in error) {
+    return String((error as { message: string }).message);
+  }
+  return 'Unknown error';
+};
 
 const isSmokeFreeMarked = (days: SmokingDay[], date: Date) =>
   days.some((d) => isSameDay(new Date(d.date), date));
@@ -148,7 +119,7 @@ const Personal = () => {
   const [editingPopupExercise, setEditingPopupExercise] = useState<{ day: string; index: number } | null>(null);
   const [editExerciseName, setEditExerciseName] = useState('');
   const [editExerciseSets, setEditExerciseSets] = useState('');
-  const [popupExercises, setPopupExercises] = useState<Record<string, WorkoutExercise[]>>(() => createDefaultPopupExercises());
+  const [popupExercises, setPopupExercises] = useState<Record<string, WorkoutExercise[]>>(() => createEmptyPopupExercises());
 
   // Meal system
   const [activeTab, setActiveTab] = useState<'workouts' | 'meals' | 'smoking'>('workouts');
@@ -232,8 +203,7 @@ const Personal = () => {
     
     if (!draggedWorkout || !targetWorkout) return;
     
-    // Swap the workout assignments
-    setWorkoutPlans(prev => prev.map(workout => {
+    const nextPlans = workoutPlans.map((workout) => {
       if (workout.id === draggedWorkout.id) {
         return { ...workout, day: targetDay };
       }
@@ -241,10 +211,15 @@ const Personal = () => {
         return { ...workout, day: draggedDay };
       }
       return workout;
-    }));
-    
+    });
+
     setDraggedDay(null);
-    toast.success('Workouts reordered');
+    void persistWorkoutPlans(nextPlans).then(() => {
+      toast.success('Workouts reordered');
+    }).catch((error) => {
+      console.error('Error saving workout order:', error);
+      toast.error(`Failed to save workout order: ${getErrorMessage(error)}`);
+    });
   };
 
   // Exercise drag and drop handlers
@@ -296,37 +271,173 @@ const Personal = () => {
   useEffect(() => {
     loadData();
     loadSmokingDays();
+    loadWorkoutExercises();
   }, [user]);
 
-  useEffect(() => {
+  const groupExercisesByDay = (
+    rows: { id: string; day: string; exercise_name: string; sets: string }[]
+  ): Record<string, WorkoutExercise[]> => {
+    const grouped = createEmptyPopupExercises();
+    for (const row of rows) {
+      if (!grouped[row.day]) grouped[row.day] = [];
+      grouped[row.day].push({
+        id: row.id,
+        name: row.exercise_name,
+        sets: row.sets,
+      });
+    }
+    return grouped;
+  };
+
+  const cachePopupExercisesLocally = (
+    storageUserId: string,
+    exercises: Record<string, WorkoutExercise[]>
+  ) => {
+    try {
+      localStorage.setItem(getPopupStorageKey(storageUserId), JSON.stringify(exercises));
+    } catch (error) {
+      console.error('Error caching workout exercises locally:', error);
+    }
+  };
+
+  const loadWorkoutExercises = async () => {
     const storageUserId = getPersistenceUserId(user?.id);
     if (!storageUserId) return;
 
+    if (!user && isLocalDevHost()) {
+      try {
+        const stored = localStorage.getItem(getPopupStorageKey(storageUserId));
+        setPopupExercises(stored ? JSON.parse(stored) : createEmptyPopupExercises());
+      } catch {
+        setPopupExercises(createEmptyPopupExercises());
+      }
+      return;
+    }
+
+    if (!user) return;
+
     try {
-      const stored = localStorage.getItem(getPopupStorageKey(storageUserId));
-      if (!stored) {
-        setPopupExercises(createDefaultPopupExercises());
-        return;
+      const { data, error } = await supabase
+        .from('workout_exercises')
+        .select('id, day, exercise_name, sets')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      const grouped = groupExercisesByDay(data || []);
+      setPopupExercises(grouped);
+      localStorage.setItem(getPopupStorageKey(storageUserId), JSON.stringify(grouped));
+    } catch (error) {
+      console.error('Error loading workout exercises:', error);
+      try {
+        const stored = localStorage.getItem(getPopupStorageKey(storageUserId));
+        setPopupExercises(stored ? JSON.parse(stored) : createEmptyPopupExercises());
+      } catch {
+        setPopupExercises(createEmptyPopupExercises());
+      }
+    }
+  };
+
+  const cacheWorkoutPlansLocally = (storageUserId: string, plans: WorkoutPlan[]) => {
+    try {
+      localStorage.setItem(getWorkoutStorageKey(storageUserId), JSON.stringify(plans));
+    } catch (error) {
+      console.error('Error caching workout plans locally:', error);
+    }
+  };
+
+  const readLocalWorkoutPlans = (storageUserId: string): WorkoutPlan[] | null => {
+    try {
+      const stored = localStorage.getItem(getWorkoutStorageKey(storageUserId));
+      if (!stored) return null;
+      return dedupePlansByDay(JSON.parse(stored) as WorkoutPlan[]);
+    } catch {
+      return null;
+    }
+  };
+
+  const syncWorkoutPlansToSupabase = async (plans: WorkoutPlan[]): Promise<WorkoutPlan[]> => {
+    if (!user) return dedupePlansByDay(plans);
+
+    const normalized = dedupePlansByDay(plans);
+
+    const { data: remoteRows, error: fetchError } = await supabase
+      .from('workout_plans')
+      .select('*')
+      .eq('user_id', user.id);
+
+    if (fetchError) throw fetchError;
+
+    const remote = remoteRows || [];
+    const result: WorkoutPlan[] = [];
+
+    for (const plan of normalized) {
+      let rowId: string | null = isUuid(plan.id) ? plan.id : null;
+
+      if (!rowId || !remote.some((r) => r.id === rowId)) {
+        rowId = remote.find((r) => r.day === plan.day)?.id ?? null;
       }
 
-      const parsed = JSON.parse(stored) as Record<string, WorkoutExercise[]>;
-      setPopupExercises(parsed);
-    } catch (error) {
-      console.error('Error loading workout exercises from localStorage:', error);
-      setPopupExercises(createDefaultPopupExercises());
-    }
-  }, [user]);
+      if (rowId && isUuid(rowId)) {
+        const { data, error } = await supabase
+          .from('workout_plans')
+          .update({ day: plan.day, workout: plan.workout })
+          .eq('id', rowId)
+          .eq('user_id', user.id)
+          .select();
 
-  useEffect(() => {
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          result.push(data[0]);
+          continue;
+        }
+      }
+
+      const { data, error } = await supabase
+        .from('workout_plans')
+        .insert({
+          day: plan.day,
+          workout: plan.workout,
+          user_id: user.id,
+        })
+        .select();
+
+      if (error) throw error;
+      if (data && data.length > 0) result.push(data[0]);
+    }
+
+    const keepIds = new Set(result.map((r) => r.id));
+    const duplicateIds = remote.filter((r) => !keepIds.has(r.id)).map((r) => r.id);
+
+    if (duplicateIds.length > 0) {
+      const { error: deleteError } = await supabase
+        .from('workout_plans')
+        .delete()
+        .in('id', duplicateIds);
+      if (deleteError) throw deleteError;
+    }
+
+    return dedupePlansByDay(result);
+  };
+
+  const persistWorkoutPlans = async (plans: WorkoutPlan[]) => {
     const storageUserId = getPersistenceUserId(user?.id);
     if (!storageUserId) return;
 
-    try {
-      localStorage.setItem(getPopupStorageKey(storageUserId), JSON.stringify(popupExercises));
-    } catch (error) {
-      console.error('Error saving workout exercises to localStorage:', error);
+    const normalized = dedupePlansByDay(plans);
+
+    if (!user) {
+      setWorkoutPlans(normalized);
+      cacheWorkoutPlansLocally(storageUserId, normalized);
+      return;
     }
-  }, [popupExercises, user]);
+
+    const synced = await syncWorkoutPlansToSupabase(normalized);
+    setWorkoutPlans(synced);
+    cacheWorkoutPlansLocally(storageUserId, synced);
+  };
 
   const loadData = async () => {
     const storageUserId = getPersistenceUserId(user?.id);
@@ -339,15 +450,16 @@ const Personal = () => {
       try {
         const storedPlans = localStorage.getItem(getWorkoutStorageKey(storageUserId));
         const storedCompletions = localStorage.getItem(getCompletionStorageKey(storageUserId));
-
         const storedSmoking = localStorage.getItem(getSmokingStorageKey(storageUserId));
 
-        setWorkoutPlans(storedPlans ? JSON.parse(storedPlans) : buildDefaultWorkoutPlans(storageUserId));
+        setWorkoutPlans(
+          storedPlans ? dedupePlansByDay(JSON.parse(storedPlans)) : []
+        );
         setCompletions(storedCompletions ? JSON.parse(storedCompletions) : []);
         setSmokingDays(storedSmoking ? JSON.parse(storedSmoking) : []);
       } catch (error) {
         console.error('Error loading local dev workout data:', error);
-        setWorkoutPlans(buildDefaultWorkoutPlans(storageUserId));
+        setWorkoutPlans([]);
         setCompletions([]);
         setSmokingDays([]);
       } finally {
@@ -355,58 +467,50 @@ const Personal = () => {
       }
       return;
     }
-    
+
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
     try {
-      // Try to load from Supabase first
-      const { data: plans, error: plansError } = await (supabase
-        .from('workout_plans' as any)
+      const { data: rawPlans, error: plansError } = await supabase
+        .from('workout_plans')
         .select('*')
         .eq('user_id', user.id)
-        .order('created_at', { ascending: true }));
+        .order('created_at', { ascending: true });
 
       if (plansError) throw plansError;
 
-      // Load completions
-      const { data: comps, error: compsError } = await (supabase
-        .from('workout_completions' as any)
+      const { data: comps, error: compsError } = await supabase
+        .from('workout_completions')
         .select('*')
         .eq('user_id', user.id)
-        .order('date', { ascending: true }));
+        .order('date', { ascending: true });
 
       if (compsError) throw compsError;
 
-      // If no workout plans exist, create default ones
-      if (!plans || plans.length === 0) {
-        await createDefaultWorkoutPlans();
-      } else {
-        setWorkoutPlans(plans);
-      }
+      const finalPlans = dedupePlansByDay(rawPlans || []);
+
+      setWorkoutPlans(finalPlans);
+      cacheWorkoutPlansLocally(storageUserId, finalPlans);
 
       setCompletions(comps || []);
     } catch (error) {
       console.error('Error loading workout data from Supabase:', error);
-      
-      // Fallback to localStorage if Supabase fails
+
       try {
-        const storedPlans = localStorage.getItem(getWorkoutStorageKey(storageUserId));
+        const localPlans = readLocalWorkoutPlans(storageUserId);
         const storedCompletions = localStorage.getItem(getCompletionStorageKey(storageUserId));
-        
-        if (storedPlans) {
-          setWorkoutPlans(JSON.parse(storedPlans));
+
+        if (localPlans && localPlans.length > 0) {
+          setWorkoutPlans(localPlans);
         } else {
-          // Create default plans and store them
-          const defaultPlans = buildDefaultWorkoutPlans(storageUserId);
-          setWorkoutPlans(defaultPlans);
-          localStorage.setItem(getWorkoutStorageKey(storageUserId), JSON.stringify(defaultPlans));
+          setWorkoutPlans([]);
         }
-        
-        if (storedCompletions) {
-          setCompletions(JSON.parse(storedCompletions));
-        } else {
-          setCompletions([]);
-        }
-        
-        toast.info('Using local storage (database tables not available)');
+
+        setCompletions(storedCompletions ? JSON.parse(storedCompletions) : []);
+        toast.info('Using local storage (could not reach database)');
       } catch (localError) {
         console.error('Error loading from localStorage:', localError);
         toast.error('Failed to load workout data');
@@ -546,42 +650,39 @@ const Personal = () => {
     }
   };
 
-  const createDefaultWorkoutPlans = async () => {
-    const storageUserId = getPersistenceUserId(user?.id);
-    if (!storageUserId) return;
-
-    const defaultPlans = buildDefaultWorkoutPlans(storageUserId);
-    setWorkoutPlans(defaultPlans);
-    try {
-      localStorage.setItem(getWorkoutStorageKey(storageUserId), JSON.stringify(defaultPlans));
-    } catch (storageError) {
-      console.error('Error saving default workout plans to localStorage:', storageError);
-    }
-
-    if (!user) {
-      return;
-    }
-
-    try {
-      const { data, error } = await (supabase
-        .from('workout_plans' as any)
-        .insert(defaultPlans as any)
-        .select());
-
-      if (error) throw error;
-      if (data && data.length > 0) {
-        setWorkoutPlans(data);
-      }
-    } catch (error) {
-      console.error('Error creating default workout plans:', error);
-      toast.error('Failed to create workout plans');
-    }
-  };
-
   const handleEditWorkout = (workout: WorkoutPlan) => {
     setEditingWorkout(workout);
     setEditDay(workout.day);
     setEditWorkout(workout.workout);
+  };
+
+  const handleStartAddWorkout = (day: string) => {
+    const storageUserId = getPersistenceUserId(user?.id) || 'local';
+    setEditingWorkout({
+      id: `new_${day}_${Date.now()}`,
+      day,
+      workout: '',
+      user_id: storageUserId,
+      created_at: new Date().toISOString(),
+    });
+    setEditDay(day);
+    setEditWorkout('');
+  };
+
+  const handleRemoveWorkout = async (workout: WorkoutPlan) => {
+    const storageUserId = getPersistenceUserId(user?.id);
+    if (!storageUserId) return;
+
+    const nextPlans = workoutPlans.filter((w) => w.id !== workout.id);
+
+    try {
+      await persistWorkoutPlans(nextPlans);
+      if (editingWorkout?.id === workout.id) setEditingWorkout(null);
+      toast.success('Workout removed');
+    } catch (error) {
+      console.error('Error removing workout:', error);
+      toast.error(`Failed to remove workout: ${getErrorMessage(error)}`);
+    }
   };
 
   const handleShowWorkoutPopup = (workout: WorkoutPlan) => {
@@ -601,84 +702,149 @@ const Personal = () => {
     setEditExerciseSets(exercise.sets);
   };
 
-  const handleSavePopupExercise = () => {
+  const handleSavePopupExercise = async () => {
     if (!editingPopupExercise) return;
 
-    setPopupExercises(prev => {
-      const exercises = [...(prev[editingPopupExercise.day] || [])];
-      const current = exercises[editingPopupExercise.index];
+    const day = editingPopupExercise.day;
+    const index = editingPopupExercise.index;
+    const current = popupExercises[day]?.[index];
+    if (!current) return;
 
-      if (!current) return prev;
+    const name = editExerciseName.trim();
+    const sets = editExerciseSets.trim();
+    if (!name) {
+      toast.error('Enter an exercise name');
+      return;
+    }
 
-      exercises[editingPopupExercise.index] = {
-        name: editExerciseName.trim() || current.name,
-        sets: editExerciseSets.trim() || current.sets,
-      };
+    const wasNew = !current.id;
+    const updated: WorkoutExercise = {
+      ...current,
+      name,
+      sets: sets || '—',
+    };
 
-      return {
-        ...prev,
-        [editingPopupExercise.day]: exercises,
-      };
-    });
+    try {
+      if (user) {
+        if (current.id) {
+          const { error } = await supabase
+            .from('workout_exercises')
+            .update({ exercise_name: updated.name, sets: updated.sets })
+            .eq('id', current.id)
+            .eq('user_id', user.id);
+          if (error) throw error;
+        } else {
+          const { data, error } = await supabase
+            .from('workout_exercises')
+            .insert({
+              day,
+              exercise_name: updated.name,
+              sets: updated.sets,
+              reps: '',
+              user_id: user.id,
+            })
+            .select('id, day, exercise_name, sets')
+            .single();
+          if (error) throw error;
+          updated.id = data.id;
+        }
+      }
 
-    setEditingPopupExercise(null);
-    toast.success('Exercise updated');
+      setPopupExercises((prev) => {
+        const exercises = [...(prev[day] || [])];
+        exercises[index] = updated;
+        const next = { ...prev, [day]: exercises };
+        const storageUserId = getPersistenceUserId(user?.id);
+        if (storageUserId) cachePopupExercisesLocally(storageUserId, next);
+        return next;
+      });
+
+      setEditingPopupExercise(null);
+      toast.success(wasNew ? 'Exercise added' : 'Exercise updated');
+    } catch (error) {
+      console.error('Error saving exercise:', error);
+      toast.error(`Failed to save exercise: ${getErrorMessage(error)}`);
+    }
   };
 
   const handleAddPopupExercise = (day: string) => {
-    setPopupExercises(prev => ({
-      ...prev,
-      [day]: [...(prev[day] || []), { name: 'New Exercise', sets: '3 sets × 10 reps' }],
-    }));
+    const newExercise: WorkoutExercise = { name: '', sets: '' };
+
+    setPopupExercises((prev) => {
+      const next = { ...prev, [day]: [...(prev[day] || []), newExercise] };
+      const storageUserId = getPersistenceUserId(user?.id);
+      if (storageUserId) cachePopupExercisesLocally(storageUserId, next);
+
+      const index = next[day].length - 1;
+      setEditingPopupExercise({ day, index });
+      setEditExerciseName('');
+      setEditExerciseSets('');
+
+      return next;
+    });
   };
 
-  const handleRemovePopupExercise = (day: string, index: number) => {
-    setPopupExercises(prev => ({
-      ...prev,
-      [day]: prev[day].filter((_, i) => i !== index),
-    }));
-    toast.success('Exercise removed');
+  const handleRemovePopupExercise = async (day: string, index: number) => {
+    const target = popupExercises[day]?.[index];
+    if (!target) return;
+
+    try {
+      if (user && target.id) {
+        const { error } = await supabase
+          .from('workout_exercises')
+          .delete()
+          .eq('id', target.id)
+          .eq('user_id', user.id);
+        if (error) throw error;
+      }
+
+      setPopupExercises((prev) => {
+        const next = { ...prev, [day]: prev[day].filter((_, i) => i !== index) };
+        const storageUserId = getPersistenceUserId(user?.id);
+        if (storageUserId) cachePopupExercisesLocally(storageUserId, next);
+        return next;
+      });
+
+      toast.success('Exercise removed');
+    } catch (error) {
+      console.error('Error removing exercise:', error);
+      toast.error(`Failed to remove exercise: ${getErrorMessage(error)}`);
+    }
   };
 
   const handleSaveEdit = async () => {
     const storageUserId = getPersistenceUserId(user?.id);
     if (!editingWorkout || !storageUserId) return;
 
-    try {
-      const updateData = { 
-        day: editDay, 
-        workout: editWorkout 
-      };
+    const name = editWorkout.trim();
+    if (!name) {
+      toast.error('Enter a workout name');
+      return;
+    }
 
-      if (user) {
-        const { error } = await (supabase as any)
-          .from('workout_plans')
-          .update(updateData)
-          .eq('id', editingWorkout.id)
-          .eq('user_id', user.id);
-
-        if (error) throw error;
-      } else {
-        const nextPlans = workoutPlans.map(w => w.id === editingWorkout.id
-          ? { ...w, day: editDay, workout: editWorkout }
-          : w
-        );
-        setWorkoutPlans(nextPlans);
-        localStorage.setItem(getWorkoutStorageKey(storageUserId), JSON.stringify(nextPlans));
-      }
-
-      setWorkoutPlans(prev => 
-        prev.map(w => w.id === editingWorkout.id 
-          ? { ...w, day: editDay, workout: editWorkout }
-          : w
+    const existsInList = workoutPlans.some((w) => w.id === editingWorkout.id);
+    const nextPlans = existsInList
+      ? workoutPlans.map((w) =>
+          w.id === editingWorkout.id ? { ...w, day: editDay, workout: name } : w
         )
-      );
+      : [
+          ...workoutPlans,
+          {
+            id: `local_${editDay}_${Date.now()}`,
+            day: editDay,
+            workout: name,
+            user_id: storageUserId,
+            created_at: new Date().toISOString(),
+          },
+        ];
 
+    try {
+      await persistWorkoutPlans(nextPlans);
       setEditingWorkout(null);
-      toast.success('Workout updated successfully');
+      toast.success(existsInList ? 'Workout updated' : 'Workout added');
     } catch (error) {
       console.error('Error updating workout:', error);
-      toast.error('Failed to update workout');
+      toast.error(`Failed to update workout: ${getErrorMessage(error)}`);
     }
   };
 
@@ -892,22 +1058,42 @@ const Personal = () => {
         <>
           {/* Today's Workout */}
           <div className="w-full max-w-4xl mb-12 animate-fade-in">
-            <div 
-              className="glass rounded-2xl p-6 md:p-8 text-center cursor-pointer hover:bg-white/[0.05] transition-colors"
+            <div
+              className={`glass rounded-2xl p-6 md:p-8 text-center transition-colors ${
+                todayWorkout ? 'cursor-pointer hover:bg-white/[0.05]' : ''
+              }`}
               onDoubleClick={() => {
-                if (todayWorkout) {
-                  handleCompleteWorkout();
-                }
+                if (todayWorkout) handleCompleteWorkout();
               }}
             >
               <h2 className="text-lg md:text-xl font-light text-foreground mb-2">
                 TODAY'S WORKOUT
               </h2>
-              <div className="text-2xl md:text-3xl font-medium text-foreground mb-6">
-                {todayWorkout?.workout || 'Rest Day'}
-              </div>
-                      </div>
+              {todayWorkout ? (
+                <div className="text-2xl md:text-3xl font-medium text-foreground">
+                  {todayWorkout.workout}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-muted-foreground text-sm">No workout set for today</p>
+                  <Button
+                    variant="outline"
+                    className="border-white/10"
+                    onClick={() => handleStartAddWorkout(todayName)}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add today&apos;s workout
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
+
+          {workoutPlans.length === 0 && (
+            <p className="w-full max-w-4xl -mt-6 mb-8 text-center text-sm text-muted-foreground">
+              Click any day below to add your workout plan
+            </p>
+          )}
 
           {/* Workout Plan Table */}
           <div className="w-full max-w-4xl mb-12 animate-fade-in">
@@ -945,11 +1131,14 @@ const Personal = () => {
                           <td className={`p-4 text-sm font-medium select-none ${isCurrentDay ? 'text-yellow-400' : 'text-muted-foreground'}`}>
                             {day}
                           </td>
-                          <td 
+                          <td
                             className={`p-4 text-sm cursor-pointer transition-colors ${
                               isCurrentDay ? 'text-yellow-400 hover:bg-white/[0.05]' : 'text-foreground hover:bg-white/[0.05]'
                             }`}
-                            onClick={() => workout && handleEditWorkout(workout)}
+                            onClick={() => {
+                              if (workout) handleEditWorkout(workout);
+                              else handleStartAddWorkout(day);
+                            }}
                             onDoubleClick={() => {
                               if (isCurrentDay && workout) {
                                 if (!isTodayCompleted) {
@@ -960,7 +1149,7 @@ const Personal = () => {
                               }
                             }}
                           >
-                            {editingWorkout?.id === workout?.id ? (
+                            {editingWorkout && editDay === day ? (
                               <input
                                 value={editWorkout}
                                 onChange={(e) => setEditWorkout(e.target.value)}
@@ -971,27 +1160,46 @@ const Personal = () => {
                                   }
                                 }}
                                 className="w-full h-8 px-2 text-sm text-foreground bg-transparent"
+                                placeholder="Workout name"
                                 autoFocus
                               />
+                            ) : workout ? (
+                              workout.workout
                             ) : (
-                              workout?.workout || '-'
+                              <span className="text-muted-foreground/60">Add workout</span>
                             )}
                           </td>
                           <td className="p-4 text-right">
-                            {workout && (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleShowWorkoutPopup(workout);
-                                }}
-                                className="text-muted-foreground hover:text-foreground h-8 w-8 p-0 cursor-pointer"
-                                type="button"
-                              >
-                                <Eye className="w-4 h-4" />
-                              </Button>
-                            )}
+                            <div className="flex items-center justify-end gap-1">
+                              {workout && (
+                                <>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleShowWorkoutPopup(workout);
+                                    }}
+                                    className="text-muted-foreground hover:text-foreground h-8 w-8 p-0 cursor-pointer"
+                                    type="button"
+                                  >
+                                    <Eye className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleRemoveWorkout(workout);
+                                    }}
+                                    className="text-muted-foreground hover:text-red-400 h-8 w-8 p-0 cursor-pointer"
+                                    type="button"
+                                  >
+                                    <X className="w-4 h-4" />
+                                  </Button>
+                                </>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1065,9 +1273,11 @@ const Personal = () => {
                     >
                       <div className="flex h-full flex-col justify-between">
                         <span className="text-xs font-medium">{date.getDate()}</span>
-                        <span className="text-[9px] leading-tight text-muted-foreground">
-                          {workoutForDate?.workout || 'Rest'}
-                        </span>
+                        {workoutForDate && (
+                          <span className="text-[9px] leading-tight text-muted-foreground truncate">
+                            {workoutForDate.workout}
+                          </span>
+                        )}
                       </div>
                     </button>
                   );

@@ -13,6 +13,11 @@ CREATE INDEX IF NOT EXISTS idx_smoking_days_date ON smoking_days(date);
 
 ALTER TABLE smoking_days ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Users can view their own smoking days" ON smoking_days;
+DROP POLICY IF EXISTS "Users can insert their own smoking days" ON smoking_days;
+DROP POLICY IF EXISTS "Users can update their own smoking days" ON smoking_days;
+DROP POLICY IF EXISTS "Users can delete their own smoking days" ON smoking_days;
+
 CREATE POLICY "Users can view their own smoking days" ON smoking_days
   FOR SELECT USING (auth.uid() = user_id);
 

@@ -58,6 +58,41 @@ export interface Database {
           completed_at?: string
         }
       }
+      workout_exercises: {
+        Row: {
+          id: string
+          day: string
+          exercise_name: string
+          sets: string
+          reps: string
+          focus: string | null
+          notes: string | null
+          user_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          day: string
+          exercise_name: string
+          sets: string
+          reps?: string
+          focus?: string | null
+          notes?: string | null
+          user_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          day?: string
+          exercise_name?: string
+          sets?: string
+          reps?: string
+          focus?: string | null
+          notes?: string | null
+          user_id?: string
+          created_at?: string
+        }
+      }
       smoking_days: {
         Row: {
           id: string

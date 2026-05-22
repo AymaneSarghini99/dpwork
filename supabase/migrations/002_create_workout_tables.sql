@@ -28,7 +28,12 @@ CREATE INDEX IF NOT EXISTS idx_workout_completions_workout_id ON workout_complet
 ALTER TABLE workout_plans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE workout_completions ENABLE ROW LEVEL SECURITY;
 
--- Create RLS policies
+-- Create RLS policies (drop first so this script is safe to re-run)
+DROP POLICY IF EXISTS "Users can view their own workout plans" ON workout_plans;
+DROP POLICY IF EXISTS "Users can insert their own workout plans" ON workout_plans;
+DROP POLICY IF EXISTS "Users can update their own workout plans" ON workout_plans;
+DROP POLICY IF EXISTS "Users can delete their own workout plans" ON workout_plans;
+
 CREATE POLICY "Users can view their own workout plans" ON workout_plans
   FOR SELECT USING (auth.uid() = user_id);
 
@@ -40,6 +45,11 @@ CREATE POLICY "Users can update their own workout plans" ON workout_plans
 
 CREATE POLICY "Users can delete their own workout plans" ON workout_plans
   FOR DELETE USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Users can view their own workout completions" ON workout_completions;
+DROP POLICY IF EXISTS "Users can insert their own workout completions" ON workout_completions;
+DROP POLICY IF EXISTS "Users can update their own workout completions" ON workout_completions;
+DROP POLICY IF EXISTS "Users can delete their own workout completions" ON workout_completions;
 
 CREATE POLICY "Users can view their own workout completions" ON workout_completions
   FOR SELECT USING (auth.uid() = user_id);
