@@ -25,6 +25,7 @@ export const TrainingCycleWidget = () => {
   const selectMode = async (override: ProgramOverride) => {
     try {
       await saveProgramMode(override);
+      setOpen(false);
       toast.success(
         override ? `Program ${override}` : 'Auto · 3-week cycle'
       );

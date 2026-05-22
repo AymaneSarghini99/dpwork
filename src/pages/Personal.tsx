@@ -287,9 +287,16 @@ const Personal = () => {
     isSameDay(new Date(c.date), today) && c.workout_id === todayWorkout?.id
   );
 
-  // Load workout plans and completions
+  // Reload workouts when program changes (shared context with widget)
   useEffect(() => {
     if (!cycleReady) return;
+
+    setWorkoutPlans([]);
+    setPopupExercises(createEmptyPopupExercises());
+    setShowWorkoutPopup(false);
+    setPopupWorkout(null);
+    setEditingPopupExercise(null);
+
     const init = async () => {
       await loadData(activeProgram);
       await loadSmokingDays();
