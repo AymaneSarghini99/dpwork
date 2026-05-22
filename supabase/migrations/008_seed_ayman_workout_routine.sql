@@ -14,6 +14,11 @@ BEGIN
     RAISE EXCEPTION 'User not found: aymansarghini7@gmail.com — sign up first, then re-run this migration';
   END IF;
 
+  -- Remove stale exercises (old names like "Incline Dumbbell Press" are not updated by upsert)
+  DELETE FROM workout_exercises
+  WHERE user_id = v_user_id
+    AND day IN ('Monday', 'Tuesday', 'Wednesday', 'Thursday');
+
   -- Workout plans (one workout per weekday)
   INSERT INTO workout_plans (day, workout, user_id)
   VALUES

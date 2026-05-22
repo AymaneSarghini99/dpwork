@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  getRoutineVersionKey,
+  isLegacyWorkoutRoutine,
+  OFFICIAL_WORKOUT_ROUTINE_VERSION,
+} from "@/data/officialWorkoutRoutine";
+import { replaceOfficialWorkoutRoutine } from "@/lib/syncOfficialWorkoutRoutine";
 import { format, startOfWeek, startOfMonth, endOfMonth, addDays, subDays, isToday, isSameDay } from "date-fns";
 import { Check, Edit2, Plus, X, Calendar, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -120,6 +126,7 @@ const Personal = () => {
   const [editExerciseName, setEditExerciseName] = useState('');
   const [editExerciseSets, setEditExerciseSets] = useState('');
   const [popupExercises, setPopupExercises] = useState<Record<string, WorkoutExercise[]>>(() => createEmptyPopupExercises());
+  const syncingRoutineRef = useRef(false);
 
   // Meal system
   const [activeTab, setActiveTab] = useState<'workouts' | 'meals' | 'smoking'>('workouts');
@@ -325,17 +332,45 @@ const Personal = () => {
 
       if (error) throw error;
 
-      const grouped = groupExercisesByDay(data || []);
+      let grouped = groupExercisesByDay(data || []);
+
+      if (isLegacyWorkoutRoutine(grouped) && !syncingRoutineRef.current) {
+        syncingRoutineRef.current = true;
+        try {
+          await replaceOfficialWorkoutRoutine(user.id);
+          localStorage.setItem(
+            getRoutineVersionKey(user.id),
+            OFFICIAL_WORKOUT_ROUTINE_VERSION
+          );
+
+          const { data: fresh, error: reloadError } = await supabase
+            .from('workout_exercises')
+            .select('id, day, exercise_name, sets')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: true });
+
+          if (reloadError) throw reloadError;
+          grouped = groupExercisesByDay(fresh || []);
+          toast.success('Workout program updated to your latest routine');
+        } catch (syncError) {
+          console.error('Error replacing legacy workout routine:', syncError);
+          toast.error(`Could not update workout program: ${getErrorMessage(syncError)}`);
+        } finally {
+          syncingRoutineRef.current = false;
+        }
+      } else {
+        localStorage.setItem(
+          getRoutineVersionKey(user.id),
+          OFFICIAL_WORKOUT_ROUTINE_VERSION
+        );
+      }
+
       setPopupExercises(grouped);
       localStorage.setItem(getPopupStorageKey(storageUserId), JSON.stringify(grouped));
     } catch (error) {
       console.error('Error loading workout exercises:', error);
-      try {
-        const stored = localStorage.getItem(getPopupStorageKey(storageUserId));
-        setPopupExercises(stored ? JSON.parse(stored) : createEmptyPopupExercises());
-      } catch {
-        setPopupExercises(createEmptyPopupExercises());
-      }
+      setPopupExercises(createEmptyPopupExercises());
+      toast.error(`Failed to load exercises: ${getErrorMessage(error)}`);
     }
   };
 
@@ -688,6 +723,7 @@ const Personal = () => {
   const handleShowWorkoutPopup = (workout: WorkoutPlan) => {
     setPopupWorkout(workout);
     setShowWorkoutPopup(true);
+    if (user) void loadWorkoutExercises();
   };
 
   const handleCloseWorkoutPopup = () => {
