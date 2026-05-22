@@ -17,6 +17,7 @@ export interface Database {
           id: string
           day: string
           workout: string
+          program: string
           user_id: string
           created_at: string
         }
@@ -24,6 +25,7 @@ export interface Database {
           id?: string
           day: string
           workout: string
+          program?: string
           user_id: string
           created_at?: string
         }
@@ -31,6 +33,7 @@ export interface Database {
           id?: string
           day?: string
           workout?: string
+          program?: string
           user_id?: string
           created_at?: string
         }
@@ -67,6 +70,7 @@ export interface Database {
           reps: string
           focus: string | null
           notes: string | null
+          program: string
           user_id: string
           created_at: string
         }
@@ -78,6 +82,7 @@ export interface Database {
           reps?: string
           focus?: string | null
           notes?: string | null
+          program?: string
           user_id: string
           created_at?: string
         }
@@ -89,8 +94,29 @@ export interface Database {
           reps?: string
           focus?: string | null
           notes?: string | null
+          program?: string
           user_id?: string
           created_at?: string
+        }
+      }
+      user_training_settings: {
+        Row: {
+          user_id: string
+          cycle_start_date: string
+          program_override: string | null
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          cycle_start_date?: string
+          program_override?: string | null
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          cycle_start_date?: string
+          program_override?: string | null
+          updated_at?: string
         }
       }
       smoking_days: {

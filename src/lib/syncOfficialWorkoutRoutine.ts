@@ -1,23 +1,17 @@
 import { supabase } from '@/integrations/supabase/client';
 import {
-  OFFICIAL_WORKOUT_EXERCISES,
-  ROUTINE_WEEKDAYS,
-  type RoutineWeekday,
-} from '@/data/officialWorkoutRoutine';
+  PROGRAM_A_DAYS,
+  PROGRAM_A_EXERCISES,
+  PROGRAM_A_PLANS,
+  type ProgramADay,
+  type TrainingProgram,
+} from '@/data/programA';
 
-/** Deletes Mon–Thu exercises and inserts the canonical program (fixes legacy DB rows). */
-export async function replaceOfficialWorkoutRoutine(userId: string): Promise<void> {
-  const { error: deleteError } = await supabase
-    .from('workout_exercises')
-    .delete()
-    .eq('user_id', userId)
-    .in('day', [...ROUTINE_WEEKDAYS]);
-
-  if (deleteError) throw deleteError;
-
-  const rows = ROUTINE_WEEKDAYS.flatMap((day: RoutineWeekday) =>
-    OFFICIAL_WORKOUT_EXERCISES[day].map((exercise) => ({
+const buildExerciseRows = (program: TrainingProgram, userId: string) =>
+  PROGRAM_A_DAYS.flatMap((day: ProgramADay) =>
+    PROGRAM_A_EXERCISES[day].map((exercise) => ({
       day,
+      program,
       exercise_name: exercise.name,
       sets: exercise.sets,
       reps: '',
@@ -27,7 +21,51 @@ export async function replaceOfficialWorkoutRoutine(userId: string): Promise<voi
     }))
   );
 
-  const { error: insertError } = await supabase.from('workout_exercises').insert(rows);
+/** Replace Program A exercises + plans (does not touch Program B). */
+export async function replaceProgramA(userId: string): Promise<void> {
+  const { error: deleteExercisesError } = await supabase
+    .from('workout_exercises')
+    .delete()
+    .eq('user_id', userId)
+    .eq('program', 'A')
+    .in('day', [...PROGRAM_A_DAYS]);
 
-  if (insertError) throw insertError;
+  if (deleteExercisesError) throw deleteExercisesError;
+
+  const { error: insertExercisesError } = await supabase
+    .from('workout_exercises')
+    .insert(buildExerciseRows('A', userId));
+
+  if (insertExercisesError) throw insertExercisesError;
+
+  for (const day of PROGRAM_A_DAYS) {
+    const { data: existing } = await supabase
+      .from('workout_plans')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('program', 'A')
+      .eq('day', day)
+      .maybeSingle();
+
+    const workout = PROGRAM_A_PLANS[day];
+
+    if (existing?.id) {
+      const { error } = await supabase
+        .from('workout_plans')
+        .update({ workout })
+        .eq('id', existing.id);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase.from('workout_plans').insert({
+        day,
+        program: 'A',
+        workout,
+        user_id: userId,
+      });
+      if (error) throw error;
+    }
+  }
 }
+
+/** @deprecated Use replaceProgramA */
+export const replaceOfficialWorkoutRoutine = replaceProgramA;
